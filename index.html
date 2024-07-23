@@ -1,0 +1,195 @@
+<!doctype html>
+<html class="no-js" lang="">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title></title>
+  <link rel="stylesheet" href="css/style.css">
+  <meta name="description" content="">
+  <script type="importmap">
+  {
+    "imports": {
+      "vue": "https://unpkg.com/vue@3/dist/vue.esm-browser.js"
+    }
+  }
+  </script>
+  <script src="js/app.js"></script>
+  <style type="text/css">
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+    #app {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: stretch;
+      justify-content: stretch;
+    }
+    #app > * {
+      align-self: stretch;
+      padding: 1em;
+      min-height: 100%;
+      overflow-x: clip;
+      overflow-y: auto;
+    }
+    #conversations {
+      flex: 0 0 auto;
+      width: 25%;
+      background-color: lightgray;
+    }
+    #conversations ul {
+      list-style: none;
+    }
+    #messages {
+      flex: 0 0 auto;
+      width: 50%;
+    }
+    #messages .message {
+      margin-bottom: 1em;
+    }
+    .thread {
+      margin-left: 2em;
+    }
+    #participant {
+      flex: 0 0 auto;
+      width: 25%;
+      background-color: mintcream;
+    }
+  </style>
+</head>
+<body id="app">
+
+<nav id="conversations">
+  <ul>
+    <li v-for="conversation of data.getConversations()">
+      <a href="javascript:void(0)"># <span v-text="getConversationName(conversation, data)" @click="conversationId = conversation.id"></span></a>
+    </li>
+  </ul>
+</nav>
+
+<div id="messages">
+  <div v-for="message of getRootEventsByConversationId(conversationId, data)" v-if="conversationId">
+    <message-tree :message="message" :key="message.id"></message-tree>
+  </div>
+</div>
+
+<div id="participant">
+  <div v-for="participant of [data.getParticipantById(participantId)]" v-if="participantId">
+    <h2 v-text="getParticipantName(participant, data)"></h2>
+  </div>
+</div>
+
+<template id="message-tree">
+  <div class="message">
+    <a href="javascript:void(0)">@<span v-text="getParticipantName(message.participant, data)" @click="participantId = message.participant"></span></a>
+    <div v-text="message.body"></div>
+    <div v-if="message.attachments?.length" v-for="attachment in message.attachments">
+      <span v-if="/\.(jpg|jpeg|gif|png)$/i.test(attachment.id)"><!-- FIXME also check attachment.display -->
+        <img :src="basePath + '/' + attachment.id" />
+      </span>
+      <span v-else>
+        <a :href="basePath + '/' + attachment.id" v-text="attachment.display"></a>
+      </span>
+    </div>
+  </div>
+  <div class="thread" v-for="message of getEventsByParentId(message.id, data)">
+    <message-tree :message="message" :key="message.id"></message-tree>
+  </div>
+</template>
+
+</body>
+
+<script type="module">
+  import { createApp, ref } from 'vue'
+
+  var basePath = 'rsmf';
+  let url = basePath + '/rsmf_manifest.json';
+  var dataFu = fetch(url, { mode: 'cors' })
+            .then(response => response.json())
+            .then(json => new RsmfAdapter(json));
+
+  function getConversationName(conversation, rsmf)
+  {
+    return conversation['display'] || conversation['id'];
+  }
+
+  function getParticipantName(participant, rsmf)
+  {
+    if (typeof participant === 'string') participant = rsmf.getParticipantById(participant);
+    return participant['display'] || participant['id'];
+  }
+
+  function getRootEventsByConversationId(conversationId, rsmf)
+  {
+    return rsmf.getRootEventIdsByConversationId(conversationId).map(eventId => rsmf.getEventById(eventId));
+  }
+
+  function getEventsByParentId(parentId, rsmf)
+  {
+    return rsmf.getEventIdsByParentId(parentId).map(eventId => rsmf.getEventById(eventId));
+  }
+
+  var conversationId = ref();
+  var participantId = ref();
+
+  dataFu.then(data => {
+
+    createApp({
+      setup() {
+        return {
+          conversationId,
+          getConversationName,
+          data
+        }
+      }
+    }).mount('#conversations');
+
+    let messagesApp = createApp({
+      setup() {
+        return {
+          conversationId,
+          participantId,
+          getRootEventsByConversationId,
+          getEventsByParentId,
+          getParticipantName,
+          data
+        }
+      }
+    });
+    messagesApp.component('MessageTree', {
+      template: document.getElementById('message-tree'),
+      props: ['message'],
+      setup(props) {
+        return {
+          message: props.message,
+          participantId,
+          basePath,
+          getEventsByParentId,
+          getParticipantName,
+          data
+        }
+      }
+    });
+    messagesApp.mount('#messages');
+
+    createApp({
+      setup() {
+        return {
+          participantId,
+          getParticipantName,
+          data
+        }
+      }
+    }).mount('#participant');
+
+  });
+</script>
+
+</html>
