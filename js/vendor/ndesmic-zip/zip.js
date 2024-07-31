@@ -38,7 +38,10 @@ export class Zip {
 				this.#index += 46 + entry.fileNameLength + entry.extraLength + entry.fileCommentLength;
 			} else if (signature === 0x06054b50) { //end of central directory
 				this.#endOfCentralDirectory = this.readEndCentralDirectory(this.#index);
-			} 
+			}
+			else {
+				throw new Error("The stream does not represent a ZIP file or is corrupted.")
+			}
 		}
 	}
 	readLocalFile(offset){
