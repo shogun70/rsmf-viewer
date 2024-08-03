@@ -136,10 +136,10 @@
   import { Zip } from './js/vendor/ndesmic-zip/zip.js';
   // FIXME when Firefox supports module ServiceWorkers
   // import { FileStore } from './js/filestore.js';
+  const RSMF_MANIFEST_FILENAME = 'rsmf_manifest.json';
   const BASE_DIR = 'rsmf';
   const DATA_DIR = Date.now();
   let fileStore = new FileStore([BASE_DIR, DATA_DIR], {create: true});
-  const RSMF_MANIFEST_FILENAME = 'rsmf_manifest.json';
   document.querySelector('#file-picker').addEventListener('change', async (ev) => {
     let filesPicker = ev.currentTarget;
     if (filesPicker.files.length > 1) return;
@@ -163,15 +163,13 @@
       }
       await zip.entries.reduce((promise, entry) => promise.then(() => saveFile(entry)), Promise.resolve());
       const viewer = document.querySelector('#viewer');
-      viewer.src = 'about:blank'; // FIXME does this do anything?
       document.getElementById('dialog').close();
-      setTimeout(() => viewer.src = 'viewer.html?data=' + fileStore.getBasePath(), 1000);
+      viewer.src = 'viewer.html?data=' + fileStore.getBasePath();
     }
     reader.readAsArrayBuffer(file);
   });
 
   async function saveFile(entry) {
-    // FIXME doesn't handle directories within zips.
     console.debug(`Extracting ${entry.fileName}: `, entry);
     const blob = await entry.extract()
     const fileHandle = await fileStore.getFileHandle(entry.fileName);
