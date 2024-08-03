@@ -5,66 +5,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title></title>
-  <link rel="stylesheet" href="css/style.css">
-  <meta name="description" content="">
   <script>
-    var dataPath = 'rsmf/'; // FIXME maybe something random - would need to co-ordinate with SW.
-  </script>
-  <script>
+    // FIXME this script block should prevent page display until the service worker is ready (which may require page reload).
     if (!navigator.serviceWorker.controller) {
       navigator.serviceWorker.register('./serviceworker.js', {scope: './'});
     }
     navigator.serviceWorker.ready
             .then(rego => {
-              console.log(rego);
-              console.log(navigator.serviceWorker.controller);
-              if (!navigator.serviceWorker.controller) location.reload();
+              console.debug(rego);
+              console.debug(navigator.serviceWorker.controller);
+              if (!navigator.serviceWorker.controller) { // indicates the page was force reloaded
+                location.reload(); // alternative could be to message the serviceworker to claim the client.
+              }
             });
   </script>
-  <script type="module">
-    import { Zip } from "./js/vendor/ndesmic-zip/zip.js";
-    var opfsRoot = await navigator.storage.getDirectory();
-    document.querySelector('#file-picker').addEventListener('change', async (ev) => {
-      let filesPicker = ev.currentTarget;
-      if (filesPicker.files.length > 1) return;
-      const file = filesPicker.files[0];
-      console.info(file);
-      const reader = new FileReader();
-      reader.onload = () => {
-        opfsRoot.remove();
-        let zip;
-        try {
-          zip = new Zip(reader.result);
-        }
-        catch (ex) {
-          filesPicker.setCustomValidity("Corrupted or invalid ZIP file.")
-          filesPicker.reportValidity();
-          return;
-        }
-        if (zip.entries.find(entry => entry.fileName === 'rsmf_manifest.json') == null) {
-          filesPicker.setCustomValidity('ZIP file does not contain "rsmf_manifest.json"');
-          filesPicker.reportValidity();
-          return;
-        }
-        zip.entries.reduce((promise, entry) => promise.then(() => saveFile(entry)), Promise.resolve());
-        const viewer = document.querySelector('#viewer');
-        viewer.src = 'about:blank'; // FIXME does this do anything?
-        document.getElementById('dialog').close();
-        setTimeout(() => viewer.src = 'viewer.html?data=' + dataPath, 1000);
-      };
-      reader.readAsArrayBuffer(file);
-    });
-
-    async function saveFile(entry) {
-      console.info("fileName: ", entry.fileName);
-      const blob = await entry.extract()
-      const fileHandle = await opfsRoot.getFileHandle(entry.fileName, {create: true});
-      const writable = await fileHandle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-    }
-
-  </script>
+  <link rel="stylesheet" href="css/style.css">
+  <meta name="description" content="">
   <style type="text/css">
     html, body {
       width: 100vw;
@@ -123,6 +79,7 @@
       display: block;
       font-size: 16pt;
       padding: 8pt;
+      color: lightblue;
       border: 2px dashed lightgray;
     }
     input[type=file]::file-selector-button {
@@ -150,6 +107,7 @@
   <iframe id="viewer"></iframe>
 </body>
 <script>
+{
   const configForm = document.querySelector('form[id=configure]');
   configForm.addEventListener('click', (e) => {
     const fileInput = e.currentTarget.querySelector('input[type=file]');
@@ -170,5 +128,60 @@
     fileInput.dispatchEvent(new Event('change'));
   });
   document.getElementById('dialog').showModal();
+}
+</script>
+<script src="./js/filestore.js"></script>
+<script type="module">
+  // FIXME are filenames in the rsmf.zip case sensitive??
+  import { Zip } from './js/vendor/ndesmic-zip/zip.js';
+  // FIXME when Firefox supports module ServiceWorkers
+  // import { FileStore } from './js/filestore.js';
+  const BASE_DIR = 'rsmf';
+  const DATA_DIR = Date.now();
+  let fileStore = new FileStore([BASE_DIR, DATA_DIR], {create: true});
+  const RSMF_MANIFEST_FILENAME = 'rsmf_manifest.json';
+  document.querySelector('#file-picker').addEventListener('change', async (ev) => {
+    let filesPicker = ev.currentTarget;
+    if (filesPicker.files.length > 1) return;
+    const file = filesPicker.files[0];
+    console.info(`Selected ${file.name}: `, file);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      let zip;
+      try {
+        zip = new Zip(reader.result);
+      }
+      catch (ex) {
+        filesPicker.setCustomValidity('Corrupted or invalid ZIP file.')
+        filesPicker.reportValidity();
+        return;
+      }
+      if (zip.entries.find(entry => entry.fileName === RSMF_MANIFEST_FILENAME) == null) {
+        filesPicker.setCustomValidity(`ZIP file does not contain "${RSMF_MANIFEST_FILENAME}"`);
+        filesPicker.reportValidity();
+        return;
+      }
+      await zip.entries.reduce((promise, entry) => promise.then(() => saveFile(entry)), Promise.resolve());
+      const viewer = document.querySelector('#viewer');
+      viewer.src = 'about:blank'; // FIXME does this do anything?
+      document.getElementById('dialog').close();
+      setTimeout(() => viewer.src = 'viewer.html?data=' + fileStore.getBasePath(), 1000);
+    }
+    reader.readAsArrayBuffer(file);
+  });
+
+  async function saveFile(entry) {
+    // FIXME doesn't handle directories within zips.
+    console.debug(`Extracting ${entry.fileName}: `, entry);
+    const blob = await entry.extract()
+    const fileHandle = await fileStore.getFileHandle(entry.fileName);
+    const writable = await fileHandle.createWritable(); // FIXME not implemented in Safari
+    await writable.write(blob);
+    await writable.close();
+  }
+
+  window.addEventListener('beforeunload', async (ev) => {
+    await fileStore.remove();
+  });
 </script>
 </html>
