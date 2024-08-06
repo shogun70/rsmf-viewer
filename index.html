@@ -170,7 +170,7 @@
   });
 
   async function saveFile(entry) {
-    console.debug(`Extracting ${entry.fileName}: `, entry);
+    console.info(`Extracting ${entry.fileName}: `, entry);
     const blob = await entry.extract()
     const fileHandle = await fileStore.getFileHandle(entry.fileName);
     const writable = await fileHandle.createWritable(); // FIXME not implemented in Safari

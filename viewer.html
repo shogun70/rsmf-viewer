@@ -90,12 +90,15 @@
 <div id="participant">
   <div v-for="participant of [data.getParticipantById(participantId)]" v-if="participantId">
     <h2 v-text="getParticipantName(participant, data)"></h2>
+    <h3 v-text="participant.email" v-if="participant.email"></h3>
+    <img :src="basePath + participant.avatar" v-if="participant.avatar" />
   </div>
 </div>
 
 <template id="message-tree">
   <div class="message">
     <a href="javascript:void(0)">@<span v-text="getParticipantName(message.participant, data)" @click="participantId = message.participant"></span></a>
+    <time v-if="message.timestamp" v-text="message.timestamp"></time>
     <div v-text="message.body"></div>
     <div v-if="message.attachments?.length" v-for="attachment in message.attachments">
       <span v-if="/\.(jpg|jpeg|gif|png)$/i.test(attachment.display)">
@@ -191,6 +194,7 @@
         return {
           participantId,
           getParticipantName,
+          basePath,
           data
         }
       }
