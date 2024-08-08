@@ -15,10 +15,16 @@ Download the code to a directory and then use a [static http server](https://gis
 
 Assuming the directory is being served from `http://localhost:8000/` then open a new browser tab and navigate to:
 
-http://localhost:8000/index.html
+  http://localhost:8000/index.html
 
 This page will prompt you to choose a `rsmf.zip` file. 
 If the file looks like a valid RSMF Zip (i.e. it contains `rsmf_manifest.json`) then it will be opened for viewing.
+
+### Online viewer
+
+You can also use the viewer automatically installed via GitHub Pages at 
+
+  https://shogun70.github.io/rsmf-viewer
 
 ## Implementation
 
