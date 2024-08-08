@@ -39,7 +39,7 @@
       align-items: stretch;
       justify-content: stretch;
     }
-    #app > * {
+    #app > .column {
       box-sizing: border-box;
       align-self: stretch;
       padding: 1em;
@@ -70,10 +70,31 @@
       width: 25%;
       background-color: mintcream;
     }
+    time {
+      color: gray;
+      font-size: small;
+    }
+    img.attachment {
+      max-width: 10vw;
+      max-height: 20vh;
+      border: 2px solid gray;
+    }
+    img.avater {
+      max-width: 10vw;
+      max-height: 20vh;
+      border: 2px solid gray;
+    }
+    #popup::backdrop {
+      background-color: rgba(0, 0, 0, 0.75);
+    }
+    #popup img {
+      max-width: 80vw;
+      max-height: 80vh;
+    }
   </style>
 </head>
 <body id="app">
-<nav id="conversations">
+<nav class="column" id="conversations">
   <ul>
     <li v-for="conversation of data.getConversations()">
       <a href="javascript:void(0)"># <span v-text="getConversationName(conversation, data)" @click="conversationId = conversation.id"></span></a>
@@ -81,28 +102,29 @@
   </ul>
 </nav>
 
-<div id="messages">
+<div class="column" id="messages">
   <div v-for="message of getRootEventsByConversationId(conversationId, data)" v-if="conversationId">
     <message-tree :message="message" :key="message.id"></message-tree>
   </div>
 </div>
 
-<div id="participant">
+<div class="column" id="participant">
   <div v-for="participant of [data.getParticipantById(participantId)]" v-if="participantId">
     <h2 v-text="getParticipantName(participant, data)"></h2>
     <h3 v-text="participant.email" v-if="participant.email"></h3>
-    <img :src="basePath + participant.avatar" v-if="participant.avatar" />
+    <img class="avater" :src="basePath + participant.avatar" v-if="participant.avatar"  @click="(e) => showImage(e.target.src)" />
   </div>
 </div>
 
 <template id="message-tree">
   <div class="message">
     <a href="javascript:void(0)">@<span v-text="getParticipantName(message.participant, data)" @click="participantId = message.participant"></span></a>
+    <span>&nbsp;&nbsp;</span>
     <time v-if="message.timestamp" v-text="message.timestamp"></time>
     <div v-text="message.body"></div>
     <div v-if="message.attachments?.length" v-for="attachment in message.attachments">
       <span v-if="/\.(jpg|jpeg|gif|png)$/i.test(attachment.display)">
-        <img :src="basePath + attachment.id" />
+        <img class="attachment" :src="basePath + attachment.id" @click="(e) => showImage(e.target.src)" />
       </span>
       <span v-else>
         <a :href="basePath + attachment.id" v-text="attachment.display"></a>
@@ -114,6 +136,9 @@
   </div>
 </template>
 
+<dialog id="popup">
+  <img src="" />
+</dialog>
 
 </body>
 
@@ -146,6 +171,14 @@
     return rsmf.getEventIdsByParentId(parentId).map(eventId => rsmf.getEventById(eventId));
   }
 
+  function showImage(src) {
+    const popup = document.querySelector('#popup');
+    const img = popup.querySelector('img');
+    img.src = src;
+    popup.showModal();
+    popup.onkeyup = (e) => { if (e.keyCode == 27) popup.close(); }; // FIXME don't keep reattaching this.
+  }
+
   var conversationId = ref();
   var participantId = ref();
 
@@ -156,6 +189,7 @@
         return {
           conversationId,
           getConversationName,
+          showImage,
           data
         }
       }
@@ -169,6 +203,7 @@
           getRootEventsByConversationId,
           getEventsByParentId,
           getParticipantName,
+          showImage,
           data
         }
       }
@@ -183,6 +218,7 @@
           basePath,
           getEventsByParentId,
           getParticipantName,
+          showImage,
           data
         }
       }
@@ -195,6 +231,7 @@
           participantId,
           getParticipantName,
           basePath,
+          showImage,
           data
         }
       }
