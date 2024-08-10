@@ -107,6 +107,9 @@
   <iframe id="viewer"></iframe>
 </body>
 <script>
+/*
+ * Setup for the #dialog and #configure form.
+ */
 {
   const configForm = document.querySelector('form[id=configure]');
   configForm.addEventListener('click', (e) => {
@@ -132,19 +135,37 @@
 </script>
 <script src="./js/filestore.js"></script>
 <script type="module">
-  // FIXME are filenames in the rsmf.zip case sensitive??
-  import { Zip } from './js/vendor/ndesmic-zip/zip.js';
-  // FIXME when Firefox supports module ServiceWorkers
-  // import { FileStore } from './js/filestore.js';
-  const RSMF_MANIFEST_FILENAME = 'rsmf_manifest.json';
-  const BASE_DIR = 'rsmf';
-  const DATA_DIR = Date.now();
-  let fileStore = new FileStore([BASE_DIR, DATA_DIR], {create: true});
-  document.querySelector('#file-picker').addEventListener('change', async (ev) => {
-    let filesPicker = ev.currentTarget;
-    if (filesPicker.files.length > 1) return;
-    const file = filesPicker.files[0];
-    console.info(`Selected ${file.name}: `, file);
+/*
+ * Setup for the #file-picker handling.
+ */
+// FIXME are filenames in the rsmf.zip case sensitive??
+import { Zip } from './js/vendor/ndesmic-zip/zip.js';
+// FIXME when Firefox supports module ServiceWorkers
+// import { FileStore } from './js/filestore.js';
+const RSMF_MANIFEST_FILENAME = 'rsmf_manifest.json';
+const BASE_DIR = 'rsmf';
+const DATA_DIR = Date.now();
+let fileStore = new FileStore([BASE_DIR, DATA_DIR], {create: true});
+
+document.querySelector('#file-picker').addEventListener('change', (ev) => {
+  let filesPicker = ev.currentTarget;
+  if (filesPicker.files.length > 1) return;
+  const file = filesPicker.files[0];
+  console.info(`Selected ${file.name}: `, file);
+  storeData(file, fileStore)
+    .then(() => {
+      const viewer = document.querySelector('#viewer');
+      document.getElementById('dialog').close();
+      viewer.src = 'viewer.html?data=' + fileStore.getBasePath();
+    })
+    .catch((error) => {
+      filesPicker.setCustomValidity(error.message)
+      filesPicker.reportValidity();
+    });
+});
+
+function storeData(zipFile, fileStore) {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = async () => {
       let zip;
@@ -152,34 +173,30 @@
         zip = new Zip(reader.result);
       }
       catch (ex) {
-        filesPicker.setCustomValidity('Corrupted or invalid ZIP file.')
-        filesPicker.reportValidity();
-        return;
+        // FIXME I've seen seemingly valid zips fail - needs more testing.
+        reject(new Error('Corrupted or invalid ZIP file.'));
       }
       if (zip.entries.find(entry => entry.fileName === RSMF_MANIFEST_FILENAME) == null) {
-        filesPicker.setCustomValidity(`ZIP file does not contain "${RSMF_MANIFEST_FILENAME}"`);
-        filesPicker.reportValidity();
-        return;
+        reject(new Error(`ZIP file does not contain "${RSMF_MANIFEST_FILENAME}"`));
       }
-      await zip.entries.reduce((promise, entry) => promise.then(() => saveFile(entry)), Promise.resolve());
-      const viewer = document.querySelector('#viewer');
-      document.getElementById('dialog').close();
-      viewer.src = 'viewer.html?data=' + fileStore.getBasePath();
+      await zip.entries.reduce((promise, entry) => promise.then(() => saveFile(entry, fileStore)), Promise.resolve());
+      resolve();
     }
-    reader.readAsArrayBuffer(file);
+    reader.readAsArrayBuffer(zipFile);
   });
+}
 
-  async function saveFile(entry) {
-    console.info(`Extracting ${entry.fileName}: `, entry);
-    const blob = await entry.extract()
-    const fileHandle = await fileStore.getFileHandle(entry.fileName);
-    const writable = await fileHandle.createWritable(); // FIXME not implemented in Safari
-    await writable.write(blob);
-    await writable.close();
-  }
+async function saveFile(entry, fileStore) {
+  console.info(`Extracting ${entry.fileName}: `, entry);
+  const blob = await entry.extract()
+  const fileHandle = await fileStore.getFileHandle(entry.fileName);
+  const writable = await fileHandle.createWritable(); // FIXME not implemented in Safari
+  await writable.write(blob);
+  await writable.close();
+}
 
-  window.addEventListener('beforeunload', async (ev) => {
-    await fileStore.remove();
-  });
+window.addEventListener('beforeunload', async (ev) => {
+  await fileStore.remove();
+});
 </script>
 </html>
