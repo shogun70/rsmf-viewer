@@ -8,8 +8,8 @@ class RsmfAdapter
     #conversationsById = new Map();
     #eventsById = new Map();
     #eventsByConversationId = new Map();
-    #rootEventIdsByConversationId = new Map();
-    #eventIdsByParentId = new Map();
+    #rootEventsByConversationId = new Map();
+    #eventsByParentId = new Map();
     #orphanEvents = []; // FIXME not displayed
 
     constructor(manifest)
@@ -44,18 +44,18 @@ class RsmfAdapter
 
             var parentId = event['parent'];
             if (typeof parentId === 'string') {
-                let events = RsmfAdapter.#getOrSet(this.#eventIdsByParentId, parentId, []);
-                events.push(id);
+                let events = RsmfAdapter.#getOrSet(this.#eventsByParentId, parentId, []);
+                events.push(event);
                 isOrphan = false;
             }
             else if (typeof conversationId === 'string') {
-                let events = RsmfAdapter.#getOrSet(this.#rootEventIdsByConversationId, conversationId, []);
-                events.push(id);
+                let events = RsmfAdapter.#getOrSet(this.#rootEventsByConversationId, conversationId, []);
+                events.push(event);
                 isOrphan = false;
             }
 
             if (isOrphan) {
-                this.#orphanEvents.push(id);
+                this.#orphanEvents.push(event);
             }
         });
     }
@@ -99,17 +99,17 @@ class RsmfAdapter
             [];
     }
 
-    getRootEventIdsByConversationId(conversationId)
+    getRootEventsByConversationId(conversationId)
     {
-        return this.#rootEventIdsByConversationId.has(conversationId) ?
-            this.#rootEventIdsByConversationId.get(conversationId) :
+        return this.#rootEventsByConversationId.has(conversationId) ?
+            this.#rootEventsByConversationId.get(conversationId) :
             [];
     }
 
-    getEventIdsByParentId(parentId)
+    getEventsByParentId(parentId)
     {
-        return this.#eventIdsByParentId.has(parentId) ?
-            this.#eventIdsByParentId.get(parentId) :
+        return this.#eventsByParentId.has(parentId) ?
+            this.#eventsByParentId.get(parentId) :
             [];
     }
 

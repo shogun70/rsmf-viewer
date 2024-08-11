@@ -163,12 +163,12 @@
 
   function getRootEventsByConversationId(conversationId, rsmf)
   {
-    return rsmf.getRootEventIdsByConversationId(conversationId).map(eventId => rsmf.getEventById(eventId));
+    return rsmf.getRootEventsByConversationId(conversationId);
   }
 
   function getEventsByParentId(parentId, rsmf)
   {
-    return rsmf.getEventIdsByParentId(parentId).map(eventId => rsmf.getEventById(eventId));
+    return rsmf.getEventsByParentId(parentId);
   }
 
   function showImage(src) {
