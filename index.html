@@ -19,6 +19,7 @@
               }
             });
   </script>
+
   <link rel="stylesheet" href="css/style.css">
   <meta name="description" content="">
   <style type="text/css">
@@ -99,7 +100,7 @@
   <form id="configure" method="dialog">
     <h1>RSMF Viewer</h1>
     <fieldset>
-      <label>Drag the rsmf.zip file or click to select.</label>
+      <label>Drag the RSMF email or zip file or click to select.</label>
       <input type="file" id="file-picker" title="" required />
     </fieldset>
   </form>
@@ -140,18 +141,25 @@
  */
 // FIXME are filenames in the rsmf.zip case sensitive??
 import { Zip } from './js/vendor/ndesmic-zip/zip.js';
+
+// TODO investigate leaner email parsers, e.g. https://github.com/netas-ch/eml-parser
+import { default as PostalMime } from './js/vendor/postal-mime/postal-mime.js';
+
 // FIXME when Firefox supports module ServiceWorkers
 // import { FileStore } from './js/filestore.js';
+const RSMF_ZIP_FILENAME = 'rsmf.zip';
 const RSMF_MANIFEST_FILENAME = 'rsmf_manifest.json';
 const BASE_DIR = 'rsmf';
 const DATA_DIR = Date.now();
 let fileStore = new FileStore([BASE_DIR, DATA_DIR], {create: true});
 
-document.querySelector('#file-picker').addEventListener('change', (ev) => {
+document.querySelector('#file-picker').addEventListener('change', async (ev) => {
   let filesPicker = ev.currentTarget;
   if (filesPicker.files.length > 1) return;
   const file = filesPicker.files[0];
   console.info(`Selected ${file.name}: `, file);
+  const magic = await file.slice(0,2).text();
+  const storeData = (magic === "PK") ? storeZipData : storeEmlData;
   storeData(file, fileStore)
     .then(() => {
       const viewer = document.querySelector('#viewer');
@@ -164,7 +172,22 @@ document.querySelector('#file-picker').addEventListener('change', (ev) => {
     });
 });
 
-function storeData(zipFile, fileStore) {
+function storeEmlData(emlFile, fileStore) {
+  return PostalMime.parse(emlFile.stream())
+  .catch(err => {
+    console.error(err);
+    throw new Error('Corrupted or invalid EML file.');
+  })
+  .then(email => {
+    const zipAttachment = email.attachments.find(a => a.filename === RSMF_ZIP_FILENAME);
+    if (zipAttachment == null) {
+      throw new Error(`EML file does not contain "${RSMF_ZIP_FILENAME}"`);
+    }
+    return storeZipData(new File([zipAttachment.content], zipAttachment.filename, { type: zipAttachment.mimeType }), fileStore);
+  });
+}
+
+function storeZipData(zipFile, fileStore) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = async () => {
@@ -185,6 +208,7 @@ function storeData(zipFile, fileStore) {
     reader.readAsArrayBuffer(zipFile);
   });
 }
+
 
 async function saveFile(entry, fileStore) {
   console.info(`Extracting ${entry.fileName}: `, entry);

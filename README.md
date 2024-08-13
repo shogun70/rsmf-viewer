@@ -56,3 +56,4 @@ It also utilizes other software under the MIT license:
 
 - Vue.js: https://github.com/vuejs/core/blob/main/LICENSE
 - Ndesmic Zip.js: https://github.com/ndesmic/zip/blob/main/license
+- PostalSys postal-mime.js: https://github.com/postalsys/postal-mime/blob/master/LICENSE.txt
