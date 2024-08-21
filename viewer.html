@@ -79,7 +79,7 @@
       max-height: 20vh;
       border: 2px solid gray;
     }
-    img.avater {
+    img.avatar {
       max-width: 10vw;
       max-height: 20vh;
       border: 2px solid gray;
@@ -96,29 +96,29 @@
 <body id="app">
 <nav class="column" id="conversations">
   <ul>
-    <li v-for="conversation of data.getConversations()">
-      <a href="javascript:void(0)"># <span v-text="getConversationName(conversation, data)" @click="conversationId = conversation.id"></span></a>
+    <li v-for="conversation of rsmf.getConversations()">
+      <a href="javascript:void(0)"># <span v-text="conversation.display || conversation.id" @click="conversationId = conversation.id"></span></a>
     </li>
   </ul>
 </nav>
 
 <div class="column" id="messages">
-  <div v-for="message of getRootEventsByConversationId(conversationId, data)" v-if="conversationId">
+  <div v-for="message of rsmf.getRootEventsByConversationId(conversationId)" v-if="conversationId">
     <message-tree :message="message" :key="message.id"></message-tree>
   </div>
 </div>
 
 <div class="column" id="participant">
-  <div v-for="participant of [data.getParticipantById(participantId)]" v-if="participantId">
-    <h2 v-text="getParticipantName(participant, data)"></h2>
+  <div v-if="participant">
+    <h2 v-text="participant.display || participant.id"></h2>
     <h3 v-text="participant.email" v-if="participant.email"></h3>
-    <img class="avater" :src="basePath + participant.avatar" v-if="participant.avatar"  @click="(e) => showImage(e.target.src)" />
+    <img class="avatar" :src="basePath + participant.avatar" v-if="participant.avatar"  @click="(e) => showImage(e.target.src)" />
   </div>
 </div>
 
 <template id="message-tree">
   <div class="message">
-    <a href="javascript:void(0)">@<span v-text="getParticipantName(message.participant, data)" @click="participantId = message.participant"></span></a>
+    <a href="javascript:void(0)">@<span v-text="participant.display || participant.id" @click="participantId = message.participant"></span></a>
     <span>&nbsp;&nbsp;</span>
     <time v-if="message.timestamp" v-text="message.timestamp"></time>
     <div v-text="message.body"></div>
@@ -131,7 +131,7 @@
       </span>
     </div>
   </div>
-  <div class="thread" v-for="message of getEventsByParentId(message.id, data)">
+  <div class="thread" v-for="message of rsmf.getEventsByParentId(message.id)">
     <message-tree :message="message" :key="message.id"></message-tree>
   </div>
 </template>
@@ -143,33 +143,7 @@
 </body>
 
 <script type="module">
-  import { createApp, ref } from 'vue'
-
-  let url = basePath + 'rsmf_manifest.json';
-  var dataFu = fetch(url, { mode: 'cors' })
-            .then(response => response.json())
-            .then(json => new RsmfAdapter(json));
-
-  function getConversationName(conversation, rsmf)
-  {
-    return conversation['display'] || conversation['id'];
-  }
-
-  function getParticipantName(participant, rsmf)
-  {
-    if (typeof participant === 'string') participant = rsmf.getParticipantById(participant);
-    return participant['display'] || participant['id'];
-  }
-
-  function getRootEventsByConversationId(conversationId, rsmf)
-  {
-    return rsmf.getRootEventsByConversationId(conversationId);
-  }
-
-  function getEventsByParentId(parentId, rsmf)
-  {
-    return rsmf.getEventsByParentId(parentId);
-  }
+  import { createApp, ref, computed } from 'vue'
 
   function showImage(src) {
     const popup = document.querySelector('#popup');
@@ -179,18 +153,22 @@
     popup.onkeyup = (e) => { if (e.keyCode == 27) popup.close(); }; // FIXME don't keep reattaching this.
   }
 
-  var conversationId = ref();
-  var participantId = ref();
+  let url = basePath + 'rsmf_manifest.json';
+  var dataFu = fetch(url, { mode: 'cors' })
+            .then(response => response.json())
+            .then(json => new RsmfAdapter(json));
 
-  dataFu.then(data => {
+  dataFu.then(rsmf => {
+
+    var conversationId = ref();
+    var participantId = ref();
 
     createApp({
       setup() {
         return {
           conversationId,
-          getConversationName,
-          showImage,
-          data
+          rsmf,
+          showImage
         }
       }
     }).mount('#conversations');
@@ -199,12 +177,8 @@
       setup() {
         return {
           conversationId,
-          participantId,
-          getRootEventsByConversationId,
-          getEventsByParentId,
-          getParticipantName,
-          showImage,
-          data
+          rsmf,
+          showImage
         }
       }
     });
@@ -212,14 +186,14 @@
       template: document.getElementById('message-tree'),
       props: ['message'],
       setup(props) {
+        const participant = computed(() => rsmf.getParticipantById(props.message.participant));
         return {
           message: props.message,
+          participant,
           participantId,
+          rsmf,
           basePath,
-          getEventsByParentId,
-          getParticipantName,
-          showImage,
-          data
+          showImage
         }
       }
     });
@@ -227,12 +201,12 @@
 
     createApp({
       setup() {
+        const participant = computed(() => rsmf.getParticipantById(participantId.value));
         return {
-          participantId,
-          getParticipantName,
+          participant,
+          rsmf,
           basePath,
           showImage,
-          data
         }
       }
     }).mount('#participant');

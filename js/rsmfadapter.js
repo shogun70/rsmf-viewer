@@ -6,6 +6,7 @@ class RsmfAdapter
     #manifest;
     #participantsById = new Map();
     #conversationsById = new Map();
+    #eventsOrdered;
     #eventsById = new Map();
     #eventsByConversationId = new Map();
     #rootEventsByConversationId = new Map();
@@ -16,22 +17,25 @@ class RsmfAdapter
     {
         this.#manifest = manifest;
 
-        this.getParticipants().forEach(participant => {
+        this.#manifest['participants'].forEach(participant => {
             var id = participant['id'];
             if (typeof id === 'string') this.#participantsById.set(id, participant);
             else console.warn('RSMF participant has invalid ID');
         });
-        this.getConversations().forEach(conversation => {
+        this.#manifest['conversations'].forEach(conversation => {
             var id = conversation['id'];
             if (typeof id === 'string') this.#conversationsById.set(id, conversation);
             else console.warn('RSMF conversation has invalid ID');
         });
-        this.getEvents().forEach(event => {
+        this.#eventsOrdered = this.#manifest['events']
+            .sort(RsmfAdapter.eventComparator);
+
+        this.#eventsOrdered.forEach(event => {
             var id = event['id'];
             if (typeof id === 'string') this.#eventsById.set(id, event);
             else if (id != null) console.warn('RSMF event has invalid ID');
         });
-        this.getEvents().forEach(event => {
+        this.#eventsOrdered.forEach(event => {
             const id = event['id'];
             let isOrphan = true;
 
@@ -80,12 +84,10 @@ class RsmfAdapter
         return this.#conversationsById.get(id);
     }
 
-    getEvents = () => {
-        let allEvents = this.#manifest['events'];
-        return allEvents
-            .sort(RsmfAdapter.eventComparator);
+    getEvents()
+    {
+        return this.#eventsOrdered;
     }
-
 
     getEventById(id)
     {
