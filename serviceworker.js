@@ -1,9 +1,4 @@
-importScripts(
-    './js/filestore.js'
-);
-
 const BASE_DIR = 'rsmf';
-let fileStore;
 
 self.addEventListener('install', function(event) {
     // The promise that skipWaiting() returns can be safely ignored.
@@ -22,25 +17,16 @@ self.addEventListener('activate', async (event) => {
 self.addEventListener('fetch', (event) => {
      let url = new URL(event.request.url);
      console.debug(url);
-     if (fileStore == null) fileStore = new FileStore([BASE_DIR]);
-     if (url.origin === self.location.origin && url.href.startsWith(self.registration.scope + fileStore.getBasePath())) {
-         event.respondWith(lookup(url, fileStore, event));
+     if (url.origin === self.location.origin && url.href.startsWith(self.registration.scope + BASE_DIR)) {
+         event.respondWith(lookup(url, event));
      }
 });
 
-function lookup(url, fileStore, event) {
+function lookup(url, event) {
 
     return Promise.resolve()
         .then(() => {
-            let pathname = url.href.replace(self.registration.scope + fileStore.getBasePath(), '');
-            pathname = decodeURI(pathname);
-            console.debug(pathname);
-            return fileStore.getFileHandle(pathname);
-        })
-        .then(fileHandle => fileHandle.getFile())
-        .then(file => {
-            console.debug(file);
-            return new Response(file.stream());
+            return self.caches.match(event.request)
         })
         .catch(reason => {
             console.error(reason);

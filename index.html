@@ -134,7 +134,6 @@
   document.getElementById('dialog').showModal();
 }
 </script>
-<script src="./js/filestore.js"></script>
 <script type="module">
 /*
  * Setup for the #file-picker handling.
@@ -145,34 +144,33 @@ import { Zip } from './js/vendor/ndesmic-zip/zip.js';
 // TODO investigate leaner email parsers, e.g. https://github.com/netas-ch/eml-parser
 import { default as PostalMime } from './js/vendor/postal-mime/postal-mime.js';
 
-// FIXME when Firefox supports module ServiceWorkers
-// import { FileStore } from './js/filestore.js';
 const RSMF_ZIP_FILENAME = 'rsmf.zip';
 const RSMF_MANIFEST_FILENAME = 'rsmf_manifest.json';
 const BASE_DIR = 'rsmf';
 const DATA_DIR = Date.now();
-let fileStore = new FileStore([BASE_DIR, DATA_DIR], {create: true});
+const DATA_PATH = [BASE_DIR, DATA_DIR].join('/') + '/';
 
-document.querySelector('#file-picker').addEventListener('change', async (ev) => {
-  let filesPicker = ev.currentTarget;
+document.querySelector('#file-picker').addEventListener('change', (ev) => onFilePicker(ev.currentTarget));
+
+async function onFilePicker(filesPicker) {
   if (filesPicker.files.length > 1) return;
   const file = filesPicker.files[0];
   console.info(`Selected ${file.name}: `, file);
   const magic = await file.slice(0,2).text();
   const storeData = (magic === "PK") ? storeZipData : storeEmlData;
-  storeData(file, fileStore)
+  storeData(file)
     .then(() => {
       const viewer = document.querySelector('#viewer');
       document.getElementById('dialog').close();
-      viewer.src = 'viewer.html?data=' + fileStore.getBasePath();
+      viewer.src = 'viewer.html?data=' + DATA_PATH;
     })
     .catch((error) => {
       filesPicker.setCustomValidity(error.message)
       filesPicker.reportValidity();
     });
-});
+}
 
-function storeEmlData(emlFile, fileStore) {
+function storeEmlData(emlFile) {
   return PostalMime.parse(emlFile.stream())
   .catch(err => {
     console.error(err);
@@ -183,11 +181,11 @@ function storeEmlData(emlFile, fileStore) {
     if (zipAttachment == null) {
       throw new Error(`EML file does not contain "${RSMF_ZIP_FILENAME}"`);
     }
-    return storeZipData(new File([zipAttachment.content], zipAttachment.filename, { type: zipAttachment.mimeType }), fileStore);
+    return storeZipData(new File([zipAttachment.content], zipAttachment.filename, { type: zipAttachment.mimeType }));
   });
 }
 
-function storeZipData(zipFile, fileStore) {
+function storeZipData(zipFile) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = async () => {
@@ -202,25 +200,23 @@ function storeZipData(zipFile, fileStore) {
       if (zip.entries.find(entry => entry.fileName === RSMF_MANIFEST_FILENAME) == null) {
         reject(new Error(`ZIP file does not contain "${RSMF_MANIFEST_FILENAME}"`));
       }
-      await zip.entries.reduce((promise, entry) => promise.then(() => saveFile(entry, fileStore)), Promise.resolve());
+      await zip.entries.reduce((promise, entry) => promise.then(() => saveFile(entry)), Promise.resolve());
       resolve();
     }
     reader.readAsArrayBuffer(zipFile);
   });
 }
 
-
-async function saveFile(entry, fileStore) {
-  console.info(`Extracting ${entry.fileName}: `, entry);
-  const blob = await entry.extract()
-  const fileHandle = await fileStore.getFileHandle(entry.fileName);
-  const writable = await fileHandle.createWritable(); // FIXME not implemented in Safari
-  await writable.write(blob);
-  await writable.close();
+async function saveFile(entry) {
+  const path = DATA_PATH + entry.fileName;
+  console.info(`Extracting ${entry.fileName} to ${path}: `, entry);
+  const blob = await entry.extract();
+  const cache = await self.caches.open(DATA_PATH);
+  await cache.put(new Request(path), new Response(blob));
 }
 
 window.addEventListener('beforeunload', async (ev) => {
-  await fileStore.remove();
+  await self.caches.delete(DATA_PATH);
 });
 </script>
 </html>
