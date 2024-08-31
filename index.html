@@ -114,12 +114,12 @@
 {
   const configForm = document.querySelector('form[id=configure]');
   configForm.addEventListener('click', (e) => {
+    if (e.target.matches('input[type=file]')) return;
     const fileInput = e.currentTarget.querySelector('input[type=file]');
-    if (e.target !== fileInput) {
-      e.preventDefault();
-      e.stopPropagation();
-      fileInput.click();
-    }
+    if (!fileInput) return;
+    e.preventDefault();
+    e.stopPropagation();
+    fileInput.click();
   });
   configForm.addEventListener('dragenter', (e) => e.preventDefault());
   configForm.addEventListener('dragover', (e) => e.preventDefault());
@@ -137,6 +137,7 @@
 <script type="module">
 /*
  * Setup for the #file-picker handling.
+ * FIXME this script should hide the display until setup is complete.
  */
 // FIXME are filenames in the rsmf.zip case sensitive??
 import { Zip } from './js/vendor/ndesmic-zip/zip.js';
@@ -153,7 +154,7 @@ const DATA_PATH = [BASE_DIR, DATA_DIR].join('/') + '/';
 document.querySelector('#file-picker').addEventListener('change', (ev) => onFilePicker(ev.currentTarget));
 
 async function onFilePicker(filesPicker) {
-  if (filesPicker.files.length > 1) return;
+  if (filesPicker.files.length !== 1) return;
   const file = filesPicker.files[0];
   console.info(`Selected ${file.name}: `, file);
   const magic = await file.slice(0,2).text();
