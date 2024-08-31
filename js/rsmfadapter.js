@@ -115,33 +115,19 @@ class RsmfAdapter
             [];
     }
 
-    static eventComparator = (evt1, evt2) => { // FIXME is this working?
+    static eventComparator = (evt1, evt2) => {
         const tsProp = 'timestamp';
-        if (evt1 == null || !evt1.hasOwnProperty(tsProp))
-        {
-            return -1;
-        }
-        if (evt2 == null || !evt2.hasOwnProperty(tsProp))
-        {
-            return 1;
-        }
         let t1 = RsmfAdapter.parseTimestamp(evt1[tsProp]);
-        if (t1 == null)
-        {
-            return -1;
-        }
         let t2 = RsmfAdapter.parseTimestamp(evt2[tsProp]);
-        if (t2 == null)
-        {
-            return 1;
-        }
-        return t1 - t2;
+        return isNaN(t1) && isNaN(t2) ? 0 :
+                 isNaN(t2) ? -1 :
+                 isNaN(t2) ? 1 :
+                 t1 - t2;
     };
 
     static parseTimestamp(timestamp)
     {
-        var ts = timestamp.toString();
-        return Date.parse(ts);
+        return Date.parse(timestamp);
     }
 
     static #getOrSet(map, key, value)
