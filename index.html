@@ -158,7 +158,7 @@ async function onFilePicker(filesPicker) {
   const file = filesPicker.files[0];
   console.info(`Selected ${file.name}: `, file);
   const magic = await file.slice(0,2).text();
-  const storeData = (magic === "PK") ? storeZipData : storeEmlData;
+  const storeData = (magic === "PK") ? storeZipData : storeEmlData; // FIXME detect non-zip / non-email.
   storeData(file)
     .then(() => {
       const viewer = document.querySelector('#viewer');
@@ -195,7 +195,6 @@ function storeZipData(zipFile) {
         zip = new Zip(reader.result);
       }
       catch (ex) {
-        // FIXME I've seen seemingly valid zips fail - needs more testing.
         reject(new Error('Corrupted or invalid ZIP file.'));
       }
       if (zip.entries.find(entry => entry.fileName === RSMF_MANIFEST_FILENAME) == null) {

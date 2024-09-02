@@ -154,12 +154,12 @@
   }
 
   let url = basePath + 'rsmf_manifest.json';
-  var dataFu = fetch(url, { mode: 'cors' })
-            .then(response => response.json())
-            .then(json => new RsmfAdapter(json));
+  fetch(url, { mode: 'cors' })
+    .then(response => response.json())
+    .then(json => new RsmfAdapter(json))
+    .then(rsmf => initialise(rsmf));
 
-  dataFu.then(rsmf => {
-
+  function initialise(rsmf) {
     var conversationId = ref();
     var participantId = ref();
 
@@ -210,8 +210,7 @@
         }
       }
     }).mount('#participant');
-
-  });
+  }
 </script>
 
 </html>
