@@ -6,7 +6,7 @@ Viewer for [rsmf.zip](https://help.relativity.com/RelativityOne/Content/System_G
 
 ## Installation
 
-The RSMF Viewer is a single-page web application (currently supports recent Chrome and Firefox, but not Safari). 
+The RSMF Viewer is a single-page web application (currently supports recent Chrome, Firefox, Safari). 
 It has no server-side code but it must be delivered from a web-server (presumably on the localhost) 
 since it makes use of features which require [secure web context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts).
 
@@ -17,8 +17,9 @@ Assuming the directory is being served from `http://localhost:8000/` then open a
 
   http://localhost:8000/index.html
 
-This page will prompt you to choose a `rsmf.zip` file. 
-If the file looks like a valid RSMF Zip (i.e. it contains `rsmf_manifest.json`) then it will be opened for viewing.
+This page will prompt you to choose a `rsmf.zip` file or a RSMF email file (`.rsmf` or `.eml`). 
+If the file looks like a valid RSMF Zip (i.e. it contains `rsmf_manifest.json`) then it will be opened for viewing. 
+Otherwise the file is expected to be an email with an attachment named `rsmf.zip`. 
 
 ### Online viewer
 
