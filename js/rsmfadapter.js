@@ -11,7 +11,7 @@ class RsmfAdapter
     #eventsByConversationId = new Map();
     #rootEventsByConversationId = new Map();
     #eventsByParentId = new Map();
-    #orphanEvents = []; // FIXME not displayed
+    #uncategorizedEvents = [];
 
     constructor(manifest)
     {
@@ -37,29 +37,29 @@ class RsmfAdapter
         });
         this.#eventsOrdered.forEach(event => {
             const id = event['id'];
-            let isOrphan = true;
+            let isUncategorized = true;
 
             const conversationId = event['conversation'];
             if (typeof conversationId === 'string') {
                 let events = RsmfAdapter.#getOrSet(this.#eventsByConversationId, conversationId, []);
                 events.push(event);
-                isOrphan = false;
+                isUncategorized = false;
             }
 
             var parentId = event['parent'];
             if (typeof parentId === 'string') {
                 let events = RsmfAdapter.#getOrSet(this.#eventsByParentId, parentId, []);
                 events.push(event);
-                isOrphan = false;
+                isUncategorized = false;
             }
             else if (typeof conversationId === 'string') {
                 let events = RsmfAdapter.#getOrSet(this.#rootEventsByConversationId, conversationId, []);
                 events.push(event);
-                isOrphan = false;
+                isUncategorized = false;
             }
 
-            if (isOrphan) {
-                this.#orphanEvents.push(event);
+            if (isUncategorized) {
+                this.#uncategorizedEvents.push(event);
             }
         });
     }
@@ -105,7 +105,12 @@ class RsmfAdapter
     {
         return this.#rootEventsByConversationId.has(conversationId) ?
             this.#rootEventsByConversationId.get(conversationId) :
-            [];
+            conversationId === 'NONE' ? this.#uncategorizedEvents : [];
+    }
+
+    getUncategorizedEvents()
+    {
+        return this.#uncategorizedEvents;
     }
 
     getEventsByParentId(parentId)

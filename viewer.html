@@ -100,6 +100,11 @@
       <a href="javascript:void(0)"># <span v-text="conversation.display || conversation.id" @click="conversationId = conversation.id"></span></a>
     </li>
   </ul>
+  <ul v-if="rsmf.getUncategorizedEvents().length">
+    <li>
+      <a href="javascript:void(0)"><span @click="conversationId = 'NONE'">Uncategorized messages</span></a>
+    </li>
+  </ul>
 </nav>
 
 <div class="column" id="messages">
