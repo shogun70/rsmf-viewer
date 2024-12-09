@@ -19,6 +19,7 @@
               }
             });
   </script>
+  <script src="js/bindings.js"></script>
 
   <link rel="stylesheet" href="css/style.css">
   <meta name="description" content="">
@@ -98,10 +99,50 @@
 <body>
 <dialog id="dialog">
   <form id="configure" method="dialog">
+    <script>
+      bindings.register(null, null, [
+        {
+          type: 'click',
+          action: (e) => {
+            if (e.target.matches('input[type=file]')) return;
+            const fileInput = e.currentTarget.querySelector('input[type=file]');
+            if (!fileInput) return;
+            e.preventDefault();
+            e.stopPropagation();
+            fileInput.click();
+          }
+        },
+        {
+          type: 'dragenter',
+          action: (e) => e.preventDefault(),
+        },
+        {
+          type: 'dragover',
+          action: (e) => e.preventDefault(),
+        },
+        {
+          type: 'drop',
+          action: async (e) => {
+            e.preventDefault();
+            const fileInput = e.currentTarget.querySelector('input[type=file]');
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(e.dataTransfer.files[0]);
+            fileInput.files = dataTransfer.files;
+            fileInput.dispatchEvent(new Event('change'));
+          }
+        }
+      ]);
+    </script>
     <h1>RSMF Viewer</h1>
     <fieldset>
       <label>Drag the RSMF email or zip file or click to select.</label>
       <input type="file" id="file-picker" title="" required accept=".rsmf, .eml, .zip, message/rfc822, application/zip" />
+      <script>
+      bindings.register(null, null, [{
+        type: 'change',
+        action: (ev) => window.onFilePicker(ev.currentTarget)
+      }])
+      </script>
     </fieldset>
   </form>
 </dialog>
@@ -111,28 +152,7 @@
 /*
  * Setup for the #dialog and #configure form.
  */
-{
-  const configForm = document.querySelector('form[id=configure]');
-  configForm.addEventListener('click', (e) => {
-    if (e.target.matches('input[type=file]')) return;
-    const fileInput = e.currentTarget.querySelector('input[type=file]');
-    if (!fileInput) return;
-    e.preventDefault();
-    e.stopPropagation();
-    fileInput.click();
-  });
-  configForm.addEventListener('dragenter', (e) => e.preventDefault());
-  configForm.addEventListener('dragover', (e) => e.preventDefault());
-  configForm.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    const fileInput = e.currentTarget.querySelector('input[type=file]');
-    const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(e.dataTransfer.files[0]);
-    fileInput.files = dataTransfer.files;
-    fileInput.dispatchEvent(new Event('change'));
-  });
   document.getElementById('dialog').showModal();
-}
 </script>
 <script type="module">
 /*
@@ -150,8 +170,6 @@ const RSMF_MANIFEST_FILENAME = 'rsmf_manifest.json';
 const BASE_DIR = 'rsmf';
 const DATA_DIR = Date.now();
 const DATA_PATH = [BASE_DIR, DATA_DIR].join('/') + '/';
-
-document.querySelector('#file-picker').addEventListener('change', (ev) => onFilePicker(ev.currentTarget));
 
 async function onFilePicker(filesPicker) {
   if (filesPicker.files.length !== 1) return;
@@ -228,6 +246,7 @@ async function saveFile(entry) {
   await cache.put(new Request(path), new Response(blob));
 }
 
+window.onFilePicker = onFilePicker;
 window.addEventListener('beforeunload', async (ev) => {
   await self.caches.delete(DATA_PATH);
 });
