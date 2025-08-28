@@ -84,6 +84,12 @@
       max-height: 20vh;
       border: 2px solid gray;
     }
+    span.emoji {
+      border: 2px solid gray;
+      border-radius: 10px;
+      padding-left: 10px;
+      padding-right: 10px;
+    }
     #popup::backdrop {
       background-color: rgba(0, 0, 0, 0.75);
     }
@@ -127,6 +133,9 @@
     <span>&nbsp;&nbsp;</span>
     <time v-if="message.timestamp" v-text="message.timestamp"></time>
     <div v-text="message.body"></div>
+    <div v-if="message.reactions?.length">
+      <span v-for="reaction in message.reactions"><span class="emoji" v-text="emojiLookup(reaction.value)"></span>&nbsp;</span>
+    </div>
     <div v-if="message.attachments?.length" v-for="attachment in message.attachments">
       <span v-if="/\.(jpg|jpeg|gif|png)$/i.test(attachment.display)">
         <img class="attachment" :src="basePath + attachment.id" @click="(e) => showImage(e.target.src)" />
@@ -158,6 +167,18 @@
     popup.onkeyup = (e) => { if (e.keyCode == 27) popup.close(); }; // FIXME don't keep reattaching this.
   }
 
+  let emojisTable = await fetch('./css/emojis.json')
+          .then(res => res.json());
+  emojisTable.shortnameMap = {};
+  emojisTable.emojis.forEach((emoji) => {
+    emojisTable.shortnameMap[emoji.shortname] = emoji;
+  });
+
+  function emojiLookup(shortname) {
+    let key = ':' + shortname + ':';
+    return emojisTable.shortnameMap[key].emoji || shortname;
+  }
+
   let url = basePath + 'rsmf_manifest.json';
   fetch(url, { mode: 'cors' })
     .then(response => response.json())
@@ -173,7 +194,8 @@
         return {
           conversationId,
           rsmf,
-          showImage
+          showImage,
+          emojiLookup,
         }
       }
     }).mount('#conversations');
@@ -183,7 +205,8 @@
         return {
           conversationId,
           rsmf,
-          showImage
+          showImage,
+          emojiLookup,
         }
       }
     });
@@ -198,7 +221,8 @@
           participantId,
           rsmf,
           basePath,
-          showImage
+          showImage,
+          emojiLookup,
         }
       }
     });
@@ -212,6 +236,7 @@
           rsmf,
           basePath,
           showImage,
+          emojiLookup,
         }
       }
     }).mount('#participant');
