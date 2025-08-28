@@ -1,16 +1,13 @@
-class Binding {
-}
-
 class NodeManager {
-    // TODO all this node manager stuff assumes that nodes are only released on unload
-    //   This might need revising
+    // TODO all this node manager stuff assumes that nodes are only released on unload. This might need revising.
+    // TODO should this just be merged into Bindings?
     static #VENDOR_PREFIX = 'meeko';
     static #RANDOM = NodeManager.randomString(6);
     static #NODE_ID_PREFIX = '__' + NodeManager.#VENDOR_PREFIX + NodeManager.#RANDOM + '_';
-    static #nodeManagerTable = {};
+    static #nodeManagerTable = new Map();
     document;
     #nodeCount = 0; // used to generated node IDs
-    #nodeStorage = {}; // hash of storage for nodes, keyed off `nodeIdProperty`
+    #nodeStorage = new Map(); // map of storage for nodes, keyed off `nodeIdProperty`
 
     constructor(document) {
         this.document = document;
@@ -18,6 +15,7 @@ class NodeManager {
 
     static randomString(length)
     {
+        if (!(length >= 1)) length = 1; // valid even for non-numeric.
         return Math.random().toString(36).slice(-length);
     }
 
@@ -32,50 +30,48 @@ class NodeManager {
         return nodeId;
     }
 
-    setData(node, data) { // FIXME assert node is element, data is binding.
+    setData(node, data) {
         console.assert(node.ownerDocument === this.document);
         let nodeId = this.uniqueId(node);
-        this.#nodeStorage[nodeId] = data;
+        console.assert(!this.#nodeStorage.has(nodeId));
+        this.#nodeStorage.set(nodeId, data);
     }
 
     hasData(node) {
         console.assert(node.ownerDocument === this.document);
         let nodeId = node.id;
-        return !nodeId ? false : nodeId in this.#nodeStorage;
+        return !nodeId ? false : this.#nodeStorage.has(nodeId);
     }
 
     getData(node) { // TODO should this throw if no data?
         console.assert(node.ownerDocument === this.document);
         let nodeId = node.id;
         if (!nodeId) return null;
-        return this.#nodeStorage[nodeId];
+        return this.#nodeStorage.get(nodeId);
     }
 
     releaseNodes() {
-        for (let id of Object.keys(this.#nodeStorage))
+        for (let id of this.#nodeStorage.keys())
         {
-            delete this.#nodeStorage[id];
+            this.#nodeStorage.delete(id);
         }
-        this.#nodeStorage = {};
+        this.#nodeStorage = new Map();
     }
 
     static getNodeManager(node) {
         let myDoc = node.ownerDocument;
-        let nodeManager = NodeManager.#nodeManagerTable[myDoc];
-        if (!nodeManager) {
-            nodeManager = new NodeManager(myDoc);
-            NodeManager.#nodeManagerTable[myDoc] = nodeManager;
-        }
+        if (NodeManager.#nodeManagerTable.has(myDoc)) return NodeManager.#nodeManagerTable.get(myDoc);
+        var nodeManager = new NodeManager(myDoc);
+        NodeManager.#nodeManagerTable.set(myDoc, nodeManager);
         return nodeManager;
     }
 
     static #releaseAllNodes()
     {
-        console.log(NodeManager.#nodeManagerTable);
-        for (let nodeManager of Object.values(NodeManager.#nodeManagerTable)) {
+        for (let nodeManager of NodeManager.#nodeManagerTable.values()) {
             nodeManager.releaseNodes();
         }
-        NodeManager.#nodeManagerTable = {};
+        NodeManager.#nodeManagerTable = new Map();
     }
 
     static {
@@ -84,6 +80,12 @@ class NodeManager {
 }
 
 class Bindings {
+    /**
+     * Attach a binding to an element.
+     * @param element {Element}
+     * @param binding {Object}
+     * @returns {Object} the binding.
+     */
     register(element, binding, handlers)
     {
         if (element == null) {
@@ -118,7 +120,7 @@ class Bindings {
     attachBinding(element, binding) {
         let nodeManager = NodeManager.getNodeManager(element);
         if (Object.getPrototypeOf(binding) === Object.prototype) {
-            Object.setPrototypeOf(binding, Binding.prototype); //
+            Object.setPrototypeOf(binding, Binding.prototype);
         }
         binding.id = nodeManager.uniqueId(element);
         Object.defineProperty(binding, 'element', { get: function() { return document.getElementById(this.id); }});
@@ -195,3 +197,9 @@ document.addEventListener('DOMContentLoaded', (e) => {
        bindings.register(currentTarget, o);
    }
 });
+
+class Binding {
+}
+
+// Binding methods and properties can be added vie Binding.prototype.
+// e.g. Binding.prototype.find = function(selector) { return this.element.querySelector(selector); }
