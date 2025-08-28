@@ -100,15 +100,15 @@
       <a href="javascript:void(0)"># <span v-text="conversation.display || conversation.id" @click="conversationId = conversation.id"></span></a>
     </li>
   </ul>
-  <ul v-if="rsmf.getUncategorizedEvents().length">
+  <ul v-if="rsmf.getEventsByConversationId('').length">
     <li>
-      <a href="javascript:void(0)"><span @click="conversationId = 'NONE'">Uncategorized messages</span></a>
+      <a href="javascript:void(0)"><span @click="conversationId = ''">Uncategorized messages</span></a>
     </li>
   </ul>
 </nav>
 
 <div class="column" id="messages">
-  <div v-for="message of rsmf.getRootEventsByConversationId(conversationId)" v-if="conversationId">
+  <div v-for="message of rsmf.getRootEvents(conversationId)" v-if="conversationId">
     <message-tree :message="message" :key="message.id"></message-tree>
   </div>
 </div>
