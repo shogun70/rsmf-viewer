@@ -132,7 +132,7 @@
     <a href="javascript:void(0)">@<span v-text="participant.display || participant.id" @click="participantId = message.participant"></span></a>
     <span>&nbsp;&nbsp;</span>
     <time v-if="message.timestamp" v-text="message.timestamp"></time>
-    <div v-text="message.body"></div>
+    <div v-text="withEmoji(message.body)"></div>
     <div v-if="message.reactions?.length">
       <span v-for="reaction in message.reactions"><span class="emoji" v-text="emojiLookup(reaction.value)"></span>&nbsp;</span>
     </div>
@@ -174,9 +174,24 @@
     emojisTable.shortnameMap[emoji.shortname] = emoji;
   });
 
-  function emojiLookup(shortname) {
-    let key = ':' + shortname + ':';
-    return emojisTable.shortnameMap[key].emoji || shortname;
+  let emojiMap = {
+    '+1': 'thumbs_up',
+    '-1': 'thumbs_down',
+    '100': 'hundred_points',
+    '1234': 'input_numbers',
+    'abc': 'capital_abcd',
+  }
+
+  function emojiLookup(emojiString) {
+    let shortname = emojiMap.hasOwnProperty(emojiString) ? emojiMap[emojiString] : emojiString;
+    let key = `:${shortname}:`;
+    return emojisTable.shortnameMap.hasOwnProperty(key) ? emojisTable.shortnameMap[key].emoji : `:${emojiString}:`;
+  }
+
+  function withEmoji(text) {
+    return typeof text === 'string' ?
+            text.replace(/:([a-zA-Z0-9_]+):/g, (match, p1) => emojiLookup(p1)) :
+            text;
   }
 
   let url = basePath + 'rsmf_manifest.json';
@@ -196,6 +211,7 @@
           rsmf,
           showImage,
           emojiLookup,
+          withEmoji,
         }
       }
     }).mount('#conversations');
@@ -207,6 +223,7 @@
           rsmf,
           showImage,
           emojiLookup,
+          withEmoji,
         }
       }
     });
@@ -223,6 +240,7 @@
           basePath,
           showImage,
           emojiLookup,
+          withEmoji,
         }
       }
     });
@@ -237,6 +255,7 @@
           basePath,
           showImage,
           emojiLookup,
+          withEmoji,
         }
       }
     }).mount('#participant');
