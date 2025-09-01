@@ -101,16 +101,15 @@
 </head>
 <body id="app">
 <nav class="column" id="conversations">
-  <ul>
-    <li v-for="conversation of rsmf.getConversations()">
-      <a href="javascript:void(0)"># <span v-text="conversation.display || conversation.id" @click="conversationId = conversation.id"></span></a>
-    </li>
-  </ul>
-  <ul v-if="rsmf.getEventsByConversationId('').length">
-    <li>
-      <a href="javascript:void(0)"><span @click="conversationId = ''">Uncategorized messages</span></a>
-    </li>
-  </ul>
+  <form id="options" @submit.prevent="(e) => { conversationId = e.target.elements['conversationId'].value; }">
+
+  <label>Filter by conversation:</label>
+  <select name="conversationId" :size="rsmf.getConversations().length + 2" @input="(e) => { e.target.form.requestSubmit(); }">
+    <option value="null">ALL</option>
+    <option v-for="conversation of rsmf.getConversations()" :value="conversation.id" v-text="conversation.display || conversation.id"></option>
+    <option v-if="rsmf.getEventsByConversationId('').length" value="">UNCATEGORIZED</option>
+  </select>
+  </form>
 </nav>
 
 <div class="column" id="messages">
@@ -157,7 +156,7 @@
 </body>
 
 <script type="module">
-  import { createApp, ref, computed } from 'vue'
+  import { createApp, onMounted, ref, computed } from 'vue'
 
   function showImage(src) {
     const popup = document.querySelector('#popup');
@@ -218,6 +217,11 @@
 
     let messagesApp = createApp({
       setup() {
+        onMounted(() => {
+          let select = document.querySelector('form#options').elements['conversationId'];
+          select.selectedIndex = 0;
+          select.dispatchEvent(new InputEvent('input'));
+        });
         return {
           conversationId,
           rsmf,

@@ -3,6 +3,8 @@
  */
 class RsmfAdapter
 {
+    static #UNCATEGORIZED = '';
+
     #manifest;
     #participantsById = new Map();
     #conversationsById = new Map();
@@ -14,7 +16,7 @@ class RsmfAdapter
 
     constructor(manifest)
     {
-        this.#eventsByConversationId.set('', []);
+        this.#eventsByConversationId.set(RsmfAdapter.#UNCATEGORIZED, []);
         this.#manifest = manifest;
 
         this.#manifest['participants'].forEach(participant => {
@@ -110,7 +112,7 @@ class RsmfAdapter
             }
 
             if (!conversationId) {
-                this.#eventsByConversationId.get('').push(event);
+                this.#eventsByConversationId.get(RsmfAdapter.#UNCATEGORIZED).push(event);
             }
         });
     }
@@ -132,7 +134,7 @@ class RsmfAdapter
 
     getConversations()
     {
-        return this.#conversationsById.values();
+        return this.#conversationsById.values().toArray();
     }
 
     getConversationById(id)
@@ -157,21 +159,11 @@ class RsmfAdapter
             [];
     }
 
-    getRootEventsByConversationId(conversationId)
-    {
-        return this.getRootEvents(conversationId);
-    }
-
     getRootEvents(...conversationIds)
     {
         var events = this.#rootEvents;
-        return conversationIds.length === 0 ? events :
+        return conversationIds.length === 0 || conversationIds[0] + '' == 'null' ? events :
             events.filter(event => conversationIds.includes(event['conversation']));
-    }
-
-    getUncategorizedEvents()
-    {
-        return this.getEventsByConversationId('');
     }
 
     getEventsByParentId(parentId)
