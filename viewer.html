@@ -140,7 +140,7 @@
         <img class="attachment" :src="basePath + attachment.id" @click="(e) => showImage(e.target.src)" />
       </span>
       <span v-else>
-        <a :href="basePath + attachment.id" v-text="attachment.display"></a>
+        <a :href="basePath + attachment.id" target="_blank" v-text="attachment.display"></a>
       </span>
     </div>
   </div>
