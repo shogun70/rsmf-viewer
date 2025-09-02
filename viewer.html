@@ -101,19 +101,19 @@
 </head>
 <body id="app">
 <nav class="column" id="conversations">
-  <form id="options" @submit.prevent="(e) => { conversationId = e.target.elements['conversationId'].value; }">
+  <form id="options" @change="(e) => { e.currentTarget.requestSubmit(); }" @submit.prevent="(e) => { conversationId = e.target.elements['conversationId'].value; }">
 
-  <label>Filter by conversation:</label>
-  <select name="conversationId" :size="rsmf.getConversations().length + 2" @input="(e) => { e.target.form.requestSubmit(); }">
+  <label>Filter by conversation:</label><br />
+  <select name="conversationId" :size="rsmf.getConversations().length + 2">
     <option value="null">ALL</option>
     <option v-for="conversation of rsmf.getConversations()" :value="conversation.id" v-text="conversation.display || conversation.id"></option>
-    <option v-if="rsmf.getEventsByConversationId('').length" value="">UNCATEGORIZED</option>
+    <option v-if="rsmf.getEvents('', null).length" value="">NONE</option>
   </select>
   </form>
 </nav>
 
 <div class="column" id="messages">
-  <div v-for="message of rsmf.getRootEvents(conversationId)" v-if="conversationId">
+  <div v-for="message of rsmf.getEvents(conversationId, '')" v-if="conversationId">
     <message-tree :message="message" :key="message.id"></message-tree>
   </div>
 </div>
@@ -144,7 +144,7 @@
       </span>
     </div>
   </div>
-  <div class="thread" v-for="message of rsmf.getEventsByParentId(message.id)">
+  <div class="thread" v-for="message of rsmf.getEvents(null, message.id)">
     <message-tree :message="message" :key="message.id"></message-tree>
   </div>
 </template>
@@ -218,9 +218,10 @@
     let messagesApp = createApp({
       setup() {
         onMounted(() => {
-          let select = document.querySelector('form#options').elements['conversationId'];
+          let form = document.querySelector('form#options');
+          let select = form.elements['conversationId'];
           select.selectedIndex = 0;
-          select.dispatchEvent(new InputEvent('input'));
+          form.requestSubmit();
         });
         return {
           conversationId,

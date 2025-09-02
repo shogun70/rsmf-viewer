@@ -3,7 +3,15 @@
  */
 class RsmfAdapter
 {
-    static #UNCATEGORIZED = '';
+    // NONE represents the conversationId of orphan messages, the parentId of top-level messages.
+    static #NONE = '';
+    static #NONE_STRING = RsmfAdapter.#stringify(RsmfAdapter.#NONE);
+    static #NONE_DISPLAY = 'NONE';
+
+    // ALL is more-or-less a no-op filter.
+    static #ALL = null;
+    static #ALL_STRING = RsmfAdapter.#stringify(RsmfAdapter.#ALL);
+    static #ALL_DISPLAY = 'ALL';
 
     #manifest;
     #participantsById = new Map();
@@ -16,7 +24,7 @@ class RsmfAdapter
 
     constructor(manifest)
     {
-        this.#eventsByConversationId.set(RsmfAdapter.#UNCATEGORIZED, []);
+        this.#eventsByConversationId.set(RsmfAdapter.#NONE, []);
         this.#manifest = manifest;
 
         this.#manifest['participants'].forEach(participant => {
@@ -79,14 +87,13 @@ class RsmfAdapter
                     if (parentConversationId !== null) {
                         if (!conversationId) {
                             console.warn("Inferring event conversation from parent");
+                            event['invalid'] = 'Event has no conversation but parent does';
                             event['conversation'] = parentConversationId;
                             conversationId = parentConversationId;
                         }
                         else if (conversationId !== parentConversationId) {
                             console.warn("Ignoring parent relationship from different conversation", id, conversationId, parentId, parentConversationId);
-                            delete event['parent']; // FIXME is this appropriate??
-                            parentId = null;
-                            parent = null;
+                            event['invalid'] = "Parent is in different conversation";
                         }
                     }
                 }
@@ -112,7 +119,14 @@ class RsmfAdapter
             }
 
             if (!conversationId) {
-                this.#eventsByConversationId.get(RsmfAdapter.#UNCATEGORIZED).push(event);
+                if (!this.#conversationsById.has(RsmfAdapter.#NONE)) {
+                    this.#conversationsById.set(RsmfAdapter.#NONE, {
+                        virtual: true,
+                        id: RsmfAdapter.#NONE,
+                        display: RsmfAdapter.#NONE_DISPLAY,
+                    });
+                }
+                this.#eventsByConversationId.get(RsmfAdapter.#NONE).push(event);
             }
         });
     }
@@ -142,9 +156,29 @@ class RsmfAdapter
         return this.#conversationsById.get(id);
     }
 
-    getEvents()
+    /**
+     * Get events by conversation and / or parent.
+     * If parentId is non-empty then events with that parentId, otherwise
+     * If parentId is the empty string then events with no parentId but with the specified conversationId, otherwise
+     * If parentId is null then all events with the specified conversationId, otherwise
+     * all events.
+     * The conversationId can be specified, or the empty string for orphan events, or null for all conversations.
+     *
+     * @param conversationId
+     * @param parentId
+     * @returns event array
+     */
+    getEvents(conversationId, parentId)
     {
-        return this.#eventsOrdered;
+        switch (RsmfAdapter.#stringify(parentId))
+        {
+            case RsmfAdapter.#NONE_STRING:
+                return this.getRootEvents(conversationId);
+            case RsmfAdapter.#ALL_STRING:
+                return this.getEventsByConversationId(conversationId);
+            default:
+                return this.getEventsByParentId(parentId);
+        }
     }
 
     getEventById(id)
@@ -154,23 +188,38 @@ class RsmfAdapter
 
     getEventsByConversationId(conversationId)
     {
-        return this.#eventsByConversationId.has(conversationId) ?
-            this.#eventsByConversationId.get(conversationId) :
-            [];
+        switch (RsmfAdapter.#stringify(conversationId)) {
+            case RsmfAdapter.#ALL_STRING:
+                return this.#eventsOrdered;
+            default:
+                return this.#eventsByConversationId.has(conversationId) ?
+                    this.#eventsByConversationId.get(conversationId) :
+                    [];
+        }
     }
 
-    getRootEvents(...conversationIds)
+    getRootEvents(conversationId)
     {
         var events = this.#rootEvents;
-        return conversationIds.length === 0 || conversationIds[0] + '' == 'null' ? events :
-            events.filter(event => conversationIds.includes(event['conversation']));
+        switch (RsmfAdapter.#stringify(conversationId))
+        {
+            case RsmfAdapter.#ALL_STRING:
+                return events;
+            default:
+                return events.filter(event => event['conversation'] === conversationId);
+        }
     }
 
     getEventsByParentId(parentId)
     {
-        return this.#eventsByParentId.has(parentId) ?
-            this.#eventsByParentId.get(parentId) :
-            [];
+        switch (RsmfAdapter.#stringify(parentId)) {
+            case RsmfAdapter.#ALL_STRING:
+                return this.#eventsOrdered;
+            default:
+                return this.#eventsByParentId.has(parentId) ?
+                    this.#eventsByParentId.get(parentId) :
+                    [];
+        }
     }
 
     static eventComparator = (evt1, evt2) => {
@@ -193,5 +242,22 @@ class RsmfAdapter
         if (map.has(key)) return map.get(key);
         map.set(key, value);
         return value;
+    }
+
+    static #isNone(object) {
+        return RsmfAdapter.#stringify(object) === RsmfAdapter.#NONE_STRING;
+    }
+
+    static #isAll(object) {
+        return RsmfAdapter.#stringify(object) === RsmfAdapter.#ALL_STRING;
+    }
+
+    static #isSpecified(object) {
+        let s = RsmfAdapter.#stringify(object);
+        return s !== RsmfAdapter.#NONE_STRING && s !== RsmfAdapter.#ALL_STRING;
+    }
+
+    static #stringify(object) {
+        return object + '';
     }
 }
