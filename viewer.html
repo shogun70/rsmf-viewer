@@ -131,9 +131,9 @@
     <a href="javascript:void(0)">@<span v-text="participant.display || participant.id" @click="participantId = message.participant"></span></a>
     <span>&nbsp;&nbsp;</span>
     <time v-if="message.timestamp" v-text="message.timestamp"></time>
-    <div v-text="withEmoji(message.body)"></div>
+    <div v-html="withEmoji(message.body)"></div>
     <div v-if="message.reactions?.length">
-      <span v-for="reaction in message.reactions"><span class="emoji" v-text="emojiLookup(reaction.value)"></span>&nbsp;</span>
+      <span v-for="reaction in message.reactions"><span class="emoji" :title="reaction.value" v-text="emojiLookup(reaction.value)"></span>&nbsp;</span>
     </div>
     <div v-if="message.attachments?.length" v-for="attachment in message.attachments">
       <span v-if="/\.(jpg|jpeg|gif|png)$/i.test(attachment.display)">
@@ -187,10 +187,22 @@
     return emojisTable.shortnameMap.hasOwnProperty(key) ? emojisTable.shortnameMap[key].emoji : `:${emojiString}:`;
   }
 
+  /**
+   * Finds emoji strings and replaces with emoji values wrapped in `<span>`.
+   * The return value must be used as HTML.
+   *
+   * @param text
+   * @returns {*|string}
+   */
   function withEmoji(text) {
-    return typeof text === 'string' ?
-            text.replace(/:([a-zA-Z0-9_]+):/g, (match, p1) => emojiLookup(p1)) :
-            text;
+    if (typeof text !== 'string') return text;
+    let div = document.createElement('div');
+    div.textContent = text;
+    text = div.innerHTML;
+    return text.replace(/:([a-zA-Z0-9_]+):/g, (match, shortname) => {
+              let emoji = emojiLookup(shortname);
+              return `<span title=":${shortname}:">${emoji}</span>`;
+            });
   }
 
   let url = basePath + 'rsmf_manifest.json';
