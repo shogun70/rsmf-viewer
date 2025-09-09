@@ -4,14 +4,14 @@
 class RsmfAdapter
 {
     // NONE represents the conversationId of orphan messages, the parentId of top-level messages.
-    static #NONE = '';
-    static #NONE_STRING = RsmfAdapter.#stringify(RsmfAdapter.#NONE);
-    static #NONE_DISPLAY = 'NONE';
+    static NONE = '';
+    static #NONE_STRING = RsmfAdapter.#stringify(RsmfAdapter.NONE);
+    static NONE_DISPLAY = 'NONE';
 
     // ALL is more-or-less a no-op filter.
-    static #ALL = null;
-    static #ALL_STRING = RsmfAdapter.#stringify(RsmfAdapter.#ALL);
-    static #ALL_DISPLAY = 'ALL';
+    static ALL = null;
+    static #ALL_STRING = RsmfAdapter.#stringify(RsmfAdapter.ALL);
+    static ALL_DISPLAY = 'ALL';
 
     #manifest;
     #participantsById = new Map();
@@ -24,7 +24,7 @@ class RsmfAdapter
 
     constructor(manifest)
     {
-        this.#eventsByConversationId.set(RsmfAdapter.#NONE, []);
+        this.#eventsByConversationId.set(RsmfAdapter.NONE, []);
         this.#manifest = manifest;
 
         this.#manifest['participants'].forEach(participant => {
@@ -119,14 +119,14 @@ class RsmfAdapter
             }
 
             if (!conversationId) {
-                if (!this.#conversationsById.has(RsmfAdapter.#NONE)) {
-                    this.#conversationsById.set(RsmfAdapter.#NONE, {
+                if (!this.#conversationsById.has(RsmfAdapter.NONE)) {
+                    this.#conversationsById.set(RsmfAdapter.NONE, {
                         virtual: true,
-                        id: RsmfAdapter.#NONE,
-                        display: RsmfAdapter.#NONE_DISPLAY,
+                        id: RsmfAdapter.NONE,
+                        display: RsmfAdapter.NONE_DISPLAY,
                     });
                 }
-                this.#eventsByConversationId.get(RsmfAdapter.#NONE).push(event);
+                this.#eventsByConversationId.get(RsmfAdapter.NONE).push(event);
             }
         });
     }
@@ -188,7 +188,8 @@ class RsmfAdapter
 
     getEventsByConversationId(conversationId)
     {
-        switch (RsmfAdapter.#stringify(conversationId)) {
+        conversationId = RsmfAdapter.#stringify(conversationId);
+        switch (conversationId) {
             case RsmfAdapter.#ALL_STRING:
                 return this.#eventsOrdered;
             default:
@@ -201,10 +202,13 @@ class RsmfAdapter
     getRootEvents(conversationId)
     {
         var events = this.#rootEvents;
-        switch (RsmfAdapter.#stringify(conversationId))
+        conversationId = RsmfAdapter.#stringify(conversationId);
+        switch (conversationId)
         {
             case RsmfAdapter.#ALL_STRING:
                 return events;
+            case RsmfAdapter.#NONE_STRING:
+                return events.filter((event) => !event.hasOwnProperty('conversation'));
             default:
                 return events.filter(event => event['conversation'] === conversationId);
         }
@@ -212,7 +216,8 @@ class RsmfAdapter
 
     getEventsByParentId(parentId)
     {
-        switch (RsmfAdapter.#stringify(parentId)) {
+        parentId = RsmfAdapter.#stringify(parentId);
+        switch (parentId) {
             case RsmfAdapter.#ALL_STRING:
                 return this.#eventsOrdered;
             default:
@@ -258,6 +263,7 @@ class RsmfAdapter
     }
 
     static #stringify(object) {
-        return object + '';
+        let string = object + '';
+        return string.trim();
     }
 }

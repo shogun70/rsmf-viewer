@@ -104,10 +104,9 @@
   <form id="options" @change="(e) => { e.currentTarget.requestSubmit(); }" @submit.prevent="(e) => { conversationId = e.target.elements['conversationId'].value; }">
 
   <label>Filter by conversation:</label><br />
-  <select name="conversationId" :size="rsmf.getConversations().length + 2">
+  <select name="conversationId" :size="rsmf.getConversations().length + 1">
     <option value="null">ALL</option>
-    <option v-for="conversation of rsmf.getConversations()" :value="conversation.id" v-text="conversation.display || conversation.id"></option>
-    <option v-if="rsmf.getEvents('', null).length" value="">NONE</option>
+    <option v-for="conversation of rsmf.getConversations()" :value="conversation.id || ` ${RsmfAdapter.NONE} `" v-text="conversation.display || conversation.id"></option>
   </select>
   </form>
 </nav>
@@ -219,6 +218,7 @@
       setup() {
         return {
           conversationId,
+          RsmfAdapter,
           rsmf,
           showImage,
           emojiLookup,
@@ -237,6 +237,7 @@
         });
         return {
           conversationId,
+          RsmfAdapter,
           rsmf,
           showImage,
           emojiLookup,
@@ -253,6 +254,7 @@
           message: props.message,
           participant,
           participantId,
+          RsmfAdapter,
           rsmf,
           basePath,
           showImage,
@@ -268,6 +270,7 @@
         const participant = computed(() => rsmf.getParticipantById(participantId.value));
         return {
           participant,
+          RsmfAdapter,
           rsmf,
           basePath,
           showImage,
