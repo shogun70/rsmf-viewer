@@ -1,0 +1,13 @@
+{
+  "name": "rsmf-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Viewer for rsmf.zip files",
+  "scripts": {
+    "start": "serve ."
+  },
+  "devDependencies": {
+    "serve": "14.2.4"
+  },
+  "license": "MIT"
+}
