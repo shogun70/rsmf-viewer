@@ -29,7 +29,6 @@ class RsmfAdapter
     #eventsOrdered;
     #eventsById = new Map();
     #eventsByConversationId = new Map();
-    #rootEvents = [];
     #eventsByParentId = new Map();
 
     /**
@@ -137,17 +136,14 @@ class RsmfAdapter
                         timestamp: event.timestamp,
                     }
                     this.#eventsById.set(parentId, parent);
-                    this.#rootEvents.push(parent);
+                    let roots = RsmfAdapter.#getOrSet(this.#eventsByParentId, RsmfAdapter.NONE, []);
+                    roots.push(parent);
                 }
             }
 
-            if (parentId !== null) {
-                let events = RsmfAdapter.#getOrSet(this.#eventsByParentId, parentId, []);
-                events.push(event);
-            }
-            else {
-                this.#rootEvents.push(event);
-            }
+            let key = parentId ?? RsmfAdapter.NONE;
+            let events = RsmfAdapter.#getOrSet(this.#eventsByParentId, key, []);
+            events.push(event);
         });
     }
 
@@ -243,7 +239,7 @@ class RsmfAdapter
      */
     getRootEvents(conversationId)
     {
-        var events = this.#rootEvents;
+        var events = this.#eventsByParentId.get(RsmfAdapter.NONE) ?? [];
         if (conversationId === RsmfAdapter.ALL) return events;
         if (conversationId === RsmfAdapter.NONE) return events.filter(event => !event.hasOwnProperty('conversation'));
         return events.filter(event => event['conversation'] === conversationId);
