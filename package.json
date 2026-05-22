@@ -4,7 +4,8 @@
   "private": true,
   "description": "Viewer for rsmf.zip files",
   "scripts": {
-    "start": "serve ."
+    "start": "serve .",
+    "test": "node --test"
   },
   "devDependencies": {
     "serve": "14.2.4"
