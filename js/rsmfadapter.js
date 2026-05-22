@@ -41,6 +41,7 @@ class RsmfAdapter
         this.#eventsByConversationId.set(RsmfAdapter.NONE, []);
         this.#manifest = manifest;
 
+        // Index participants by ID
         this.#manifest['participants'].forEach(participant => {
             var id = participant['id'];
             if (typeof id === 'string') {
@@ -51,6 +52,7 @@ class RsmfAdapter
             }
             else console.warn('RSMF participant has invalid ID', id);
         });
+        // Index conversations by ID
         this.#manifest['conversations'].forEach(conversation => {
             var id = conversation['id'];
             if (typeof id === 'string') {
@@ -61,9 +63,11 @@ class RsmfAdapter
             }
             else console.warn('RSMF conversation has invalid ID', id);
         });
+        // Pass 0: Sort events
         this.#eventsOrdered = this.#manifest['events']
             .sort(RsmfAdapter.eventComparator);
 
+        // Pass 1: index by ID, and index by conversation
         this.#eventsOrdered.forEach(event => {
             var id = event['id'];
             if (typeof id === 'string') {
@@ -73,10 +77,7 @@ class RsmfAdapter
                 this.#eventsById.set(id, event);
             }
             else if (id != null) console.warn('RSMF event has invalid ID', id);
-        });
 
-        this.#eventsOrdered.forEach(event => {
-            const id = RsmfAdapter.getStringOrNull(event, 'id');
             let conversationId = RsmfAdapter.getStringOrNull(event, 'conversation');
             if (conversationId !== null) {
                 let conversation = this.#conversationsById.get(conversationId);
@@ -91,6 +92,22 @@ class RsmfAdapter
                 let events = RsmfAdapter.#getOrSet(this.#eventsByConversationId, conversationId, []);
                 events.push(event);
             }
+            else {
+                if (!this.#conversationsById.has(RsmfAdapter.NONE)) {
+                    this.#conversationsById.set(RsmfAdapter.NONE, {
+                        virtual: true,
+                        id: RsmfAdapter.NONE,
+                        display: RsmfAdapter.NONE_DISPLAY,
+                    });
+                }
+                this.#eventsByConversationId.get(RsmfAdapter.NONE).push(event);
+            }
+        });
+
+        // Pass 2: Validate and index parent relationships
+        this.#eventsOrdered.forEach(event => {
+            const id = RsmfAdapter.getStringOrNull(event, 'id');
+            let conversationId = RsmfAdapter.getStringOrNull(event, 'conversation');
 
             let parentId = RsmfAdapter.getStringOrNull(event, 'parent');
             if (parentId != null) {
@@ -130,17 +147,6 @@ class RsmfAdapter
             }
             else {
                 this.#rootEvents.push(event);
-            }
-
-            if (!conversationId) {
-                if (!this.#conversationsById.has(RsmfAdapter.NONE)) {
-                    this.#conversationsById.set(RsmfAdapter.NONE, {
-                        virtual: true,
-                        id: RsmfAdapter.NONE,
-                        display: RsmfAdapter.NONE_DISPLAY,
-                    });
-                }
-                this.#eventsByConversationId.get(RsmfAdapter.NONE).push(event);
             }
         });
     }
