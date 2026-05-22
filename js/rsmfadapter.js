@@ -5,15 +5,21 @@
  */
 class RsmfAdapter
 {
-    /** @type {string} Sentinel for orphan conversations or top-level (parentless) events. */
+    /**
+     * Sentinel for orphan conversations or top-level (parentless) events.
+     * @type {string}
+     * @warning This property is not truly constant — do not reassign.
+     */
     static NONE = '';
-    static #NONE_STRING = RsmfAdapter.#stringify(RsmfAdapter.NONE);
     /** @type {string} Display label for the NONE sentinel. */
     static NONE_DISPLAY = 'NONE';
 
-    /** @type {null} Sentinel meaning "all" — disables filtering. */
+    /**
+     * Sentinel meaning "all" — disables filtering.
+     * @type {null}
+     * @warning This property is not truly constant — do not reassign.
+     */
     static ALL = null;
-    static #ALL_STRING = RsmfAdapter.#stringify(RsmfAdapter.ALL);
     /** @type {string} Display label for the ALL sentinel. */
     static ALL_DISPLAY = 'ALL';
 
@@ -199,15 +205,9 @@ class RsmfAdapter
      */
     getEvents(conversationId, parentId)
     {
-        switch (RsmfAdapter.#stringify(parentId))
-        {
-            case RsmfAdapter.#NONE_STRING:
-                return this.getRootEvents(conversationId);
-            case RsmfAdapter.#ALL_STRING:
-                return this.getEventsByConversationId(conversationId);
-            default:
-                return this.getEventsByParentId(parentId);
-        }
+        if (parentId === RsmfAdapter.ALL) return this.getEventsByConversationId(conversationId);
+        if (parentId === RsmfAdapter.NONE) return this.getRootEvents(conversationId);
+        return this.getEventsByParentId(parentId);
     }
 
     /**
@@ -226,15 +226,8 @@ class RsmfAdapter
      */
     getEventsByConversationId(conversationId)
     {
-        conversationId = RsmfAdapter.#stringify(conversationId);
-        switch (conversationId) {
-            case RsmfAdapter.#ALL_STRING:
-                return this.#eventsOrdered;
-            default:
-                return this.#eventsByConversationId.has(conversationId) ?
-                    this.#eventsByConversationId.get(conversationId) :
-                    [];
-        }
+        if (conversationId === RsmfAdapter.ALL) return this.#eventsOrdered;
+        return this.#eventsByConversationId.get(conversationId) ?? [];
     }
 
     /**
@@ -245,16 +238,9 @@ class RsmfAdapter
     getRootEvents(conversationId)
     {
         var events = this.#rootEvents;
-        conversationId = RsmfAdapter.#stringify(conversationId);
-        switch (conversationId)
-        {
-            case RsmfAdapter.#ALL_STRING:
-                return events;
-            case RsmfAdapter.#NONE_STRING:
-                return events.filter((event) => !event.hasOwnProperty('conversation'));
-            default:
-                return events.filter(event => event['conversation'] === conversationId);
-        }
+        if (conversationId === RsmfAdapter.ALL) return events;
+        if (conversationId === RsmfAdapter.NONE) return events.filter(event => !event.hasOwnProperty('conversation'));
+        return events.filter(event => event['conversation'] === conversationId);
     }
 
     /**
@@ -264,15 +250,8 @@ class RsmfAdapter
      */
     getEventsByParentId(parentId)
     {
-        parentId = RsmfAdapter.#stringify(parentId);
-        switch (parentId) {
-            case RsmfAdapter.#ALL_STRING:
-                return this.#eventsOrdered;
-            default:
-                return this.#eventsByParentId.has(parentId) ?
-                    this.#eventsByParentId.get(parentId) :
-                    [];
-        }
+        if (parentId === RsmfAdapter.ALL) return this.#eventsOrdered;
+        return this.#eventsByParentId.get(parentId) ?? [];
     }
 
     /**
@@ -308,23 +287,6 @@ class RsmfAdapter
         return value;
     }
 
-    static #isNone(object) {
-        return RsmfAdapter.#stringify(object) === RsmfAdapter.#NONE_STRING;
-    }
-
-    static #isAll(object) {
-        return RsmfAdapter.#stringify(object) === RsmfAdapter.#ALL_STRING;
-    }
-
-    static #isSpecified(object) {
-        let s = RsmfAdapter.#stringify(object);
-        return s !== RsmfAdapter.#NONE_STRING && s !== RsmfAdapter.#ALL_STRING;
-    }
-
-    static #stringify(object) {
-        let string = object + '';
-        return string.trim();
-    }
 }
 
 if (typeof module !== 'undefined') module.exports = RsmfAdapter;
