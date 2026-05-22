@@ -1,16 +1,20 @@
 /**
- * Adapter to rsmf_manifest.json
+ * Adapter for navigating RSMF (Relativity Short Message Format) manifest data.
+ * Indexes participants, conversations, and events from an rsmf_manifest.json
+ * structure, providing lookup by ID and filtered retrieval.
  */
 class RsmfAdapter
 {
-    // NONE represents the conversationId of orphan messages, the parentId of top-level messages.
+    /** @type {string} Sentinel for orphan conversations or top-level (parentless) events. */
     static NONE = '';
     static #NONE_STRING = RsmfAdapter.#stringify(RsmfAdapter.NONE);
+    /** @type {string} Display label for the NONE sentinel. */
     static NONE_DISPLAY = 'NONE';
 
-    // ALL is more-or-less a no-op filter.
+    /** @type {null} Sentinel meaning "all" — disables filtering. */
     static ALL = null;
     static #ALL_STRING = RsmfAdapter.#stringify(RsmfAdapter.ALL);
+    /** @type {string} Display label for the ALL sentinel. */
     static ALL_DISPLAY = 'ALL';
 
     #manifest;
@@ -22,6 +26,10 @@ class RsmfAdapter
     #rootEvents = [];
     #eventsByParentId = new Map();
 
+    /**
+     * @param {Object} manifest - Parsed rsmf_manifest.json object containing
+     *   participants, conversations, and events arrays.
+     */
     constructor(manifest)
     {
         this.#eventsByConversationId.set(RsmfAdapter.NONE, []);
@@ -131,42 +139,63 @@ class RsmfAdapter
         });
     }
 
+    /**
+     * Return a field's value if it is a string, otherwise null.
+     * @param {Object} object
+     * @param {string} field
+     * @returns {string|null}
+     */
     static getStringOrNull(object, field) {
         let value = object[field];
         return typeof value === 'string' ? value : null;
     }
 
+    /**
+     * @returns {Object[]} All participants from the manifest.
+     */
     getParticipants()
     {
         return this.#manifest['participants'];
     }
 
+    /**
+     * @param {string} id - Participant ID.
+     * @returns {Object|undefined} The participant, or undefined if not found.
+     */
     getParticipantById(id)
     {
         return this.#participantsById.get(id);
     }
 
+    /**
+     * @returns {Object[]} All conversations (including virtual ones created for orphan events).
+     */
     getConversations()
     {
         return this.#conversationsById.values().toArray();
     }
 
+    /**
+     * @param {string} id - Conversation ID.
+     * @returns {Object|undefined} The conversation, or undefined if not found.
+     */
     getConversationById(id)
     {
         return this.#conversationsById.get(id);
     }
 
     /**
-     * Get events by conversation and / or parent.
-     * If parentId is non-empty then events with that parentId, otherwise
-     * If parentId is the empty string then events with no parentId but with the specified conversationId, otherwise
-     * If parentId is null then all events with the specified conversationId, otherwise
-     * all events.
-     * The conversationId can be specified, or the empty string for orphan events, or null for all conversations.
+     * Get events filtered by conversation and/or parent.
      *
-     * @param conversationId
-     * @param parentId
-     * @returns event array
+     * - If parentId is a non-empty string: returns events with that parentId (children of that event).
+     * - If parentId is '' (NONE): returns root events (no parent) within the conversation.
+     * - If parentId is null (ALL): returns all events in the conversation regardless of parent.
+     *
+     * The conversationId can be a specific ID, '' (NONE) for orphan events, or null (ALL) for all conversations.
+     *
+     * @param {string|null} conversationId
+     * @param {string|null} parentId
+     * @returns {Object[]}
      */
     getEvents(conversationId, parentId)
     {
@@ -181,11 +210,20 @@ class RsmfAdapter
         }
     }
 
+    /**
+     * @param {string} id - Event ID.
+     * @returns {Object|undefined} The event, or undefined if not found.
+     */
     getEventById(id)
     {
         return this.#eventsById.get(id);
     }
 
+    /**
+     * Get all events in a conversation (regardless of parent), or all events if conversationId is null (ALL).
+     * @param {string|null} conversationId
+     * @returns {Object[]}
+     */
     getEventsByConversationId(conversationId)
     {
         conversationId = RsmfAdapter.#stringify(conversationId);
@@ -199,6 +237,11 @@ class RsmfAdapter
         }
     }
 
+    /**
+     * Get top-level events (no parent) optionally filtered by conversation.
+     * @param {string|null} conversationId - Specific conversation, '' for orphans, null for all.
+     * @returns {Object[]}
+     */
     getRootEvents(conversationId)
     {
         var events = this.#rootEvents;
@@ -214,6 +257,11 @@ class RsmfAdapter
         }
     }
 
+    /**
+     * Get child events of a specific parent, or all events if parentId is null (ALL).
+     * @param {string|null} parentId
+     * @returns {Object[]}
+     */
     getEventsByParentId(parentId)
     {
         parentId = RsmfAdapter.#stringify(parentId);
@@ -227,6 +275,12 @@ class RsmfAdapter
         }
     }
 
+    /**
+     * Comparator for sorting events by timestamp (ascending).
+     * @param {Object} evt1
+     * @param {Object} evt2
+     * @returns {number}
+     */
     static eventComparator = (evt1, evt2) => {
         const tsProp = 'timestamp';
         let t1 = RsmfAdapter.parseTimestamp(evt1[tsProp]);
@@ -237,6 +291,11 @@ class RsmfAdapter
                  t1 - t2;
     };
 
+    /**
+     * Parse a timestamp string into milliseconds since epoch.
+     * @param {string} timestamp
+     * @returns {number} Milliseconds since epoch, or NaN if unparseable.
+     */
     static parseTimestamp(timestamp)
     {
         return Date.parse(timestamp);
