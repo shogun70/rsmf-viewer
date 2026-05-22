@@ -326,3 +326,5 @@ class RsmfAdapter
         return string.trim();
     }
 }
+
+if (typeof module !== 'undefined') module.exports = RsmfAdapter;
