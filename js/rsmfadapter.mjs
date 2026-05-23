@@ -236,6 +236,16 @@ class RsmfAdapter
     }
 
     /**
+     * Get events by participant.
+     * @param {string} participantId
+     * @returns {Object[]}
+     */
+    getEventsByParticipant(participantId)
+    {
+        return this.#events.entries('participant', participantId);
+    }
+
+    /**
      * Comparator for sorting events by timestamp (ascending).
      * @param {Object} evt1
      * @param {Object} evt2

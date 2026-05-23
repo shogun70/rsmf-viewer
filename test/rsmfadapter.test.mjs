@@ -107,6 +107,18 @@ describe('RsmfAdapter', () => {
     });
   });
 
+  describe('getEventsByParticipant', () => {
+    test('returns events for a known participant', () => {
+      const events = adapter.getEventsByParticipant('WFJMFG763');
+      assert.ok(events.length > 0);
+      events.forEach(e => assert.strictEqual(e.participant, 'WFJMFG763'));
+    });
+
+    test('returns empty array for unknown participant', () => {
+      assert.deepStrictEqual(adapter.getEventsByParticipant('NONEXISTENT'), []);
+    });
+  });
+
   describe('getEvents (combined filter)', () => {
     test('parentId="" returns root events for conversation', () => {
       const events = adapter.getEvents('CHAF1FWN5', '');
