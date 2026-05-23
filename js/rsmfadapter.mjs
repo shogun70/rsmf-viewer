@@ -1,3 +1,5 @@
+import IndexedList from './indexedlist.mjs';
+
 /**
  * Adapter for navigating RSMF (Relativity Short Message Format) manifest data.
  * Indexes participants, conversations, and events from an rsmf_manifest.json
@@ -26,10 +28,7 @@ class RsmfAdapter
     #manifest;
     #participantsById = new Map();
     #conversationsById = new Map();
-    #eventsOrdered;
-    #eventsById = new Map();
-    #eventsByConversationId = new Map();
-    #eventsByParentId = new Map();
+    #events; // IndexedList with indexes on id, conversation, parent, participant
 
     /**
      * @param {Object} manifest - Parsed rsmf_manifest.json object containing
@@ -37,20 +36,18 @@ class RsmfAdapter
      */
     constructor(manifest)
     {
-        this.#eventsByConversationId.set(RsmfAdapter.NONE, []);
         this.#manifest = manifest;
+        this.#events = new IndexedList(null, ['id', 'conversation', 'parent', 'participant']);
 
         // Index participants by ID
         this.#manifest['participants'].forEach(participant => {
             var id = participant['id'];
             if (typeof id === 'string') {
-                if (this.#eventsByParentId.has(id)) {
-                    console.warn('Duplicate RSMF participant ID', id);
-                }
                 this.#participantsById.set(id, participant);
             }
             else console.warn('RSMF participant has invalid ID', id);
         });
+
         // Index conversations by ID
         this.#manifest['conversations'].forEach(conversation => {
             var id = conversation['id'];
@@ -62,36 +59,21 @@ class RsmfAdapter
             }
             else console.warn('RSMF conversation has invalid ID', id);
         });
-        // Pass 0: Sort events
-        this.#eventsOrdered = this.#manifest['events']
-            .sort(RsmfAdapter.eventComparator);
 
-        // Pass 1: index by ID, and index by conversation
-        this.#eventsOrdered.forEach(event => {
-            var id = event['id'];
-            if (typeof id === 'string') {
-                if (this.#eventsById.has(id)) {
-                    console.warn('Duplicate RSMF event ID', id);
-                }
-                this.#eventsById.set(id, event);
-            }
-            else if (id != null) console.warn('RSMF event has invalid ID', id);
+        // Sort events by timestamp
+        let sorted = this.#manifest['events'].sort(RsmfAdapter.eventComparator);
 
+        // Pass 1: Add events to IndexedList, validate conversation references
+        sorted.forEach(event => {
+            let id = RsmfAdapter.getStringOrNull(event, 'id');
             let conversationId = RsmfAdapter.getStringOrNull(event, 'conversation');
-            if (conversationId !== null) {
-                let conversation = this.#conversationsById.get(conversationId);
-                if (conversation == null) {
-                    console.warn("Found event with non-existent conversation ID", conversationId);
-                    conversation = {
-                        virtual: true,
-                        id: conversationId,
-                    }
-                    this.#conversationsById.set(conversationId, conversation);
-                }
-                let events = RsmfAdapter.#getOrSet(this.#eventsByConversationId, conversationId, []);
-                events.push(event);
+
+            // Validate conversation reference
+            if (conversationId !== null && !this.#conversationsById.has(conversationId)) {
+                console.warn("Found event with non-existent conversation ID", conversationId);
+                this.#conversationsById.set(conversationId, { virtual: true, id: conversationId });
             }
-            else {
+            if (conversationId === null) {
                 if (!this.#conversationsById.has(RsmfAdapter.NONE)) {
                     this.#conversationsById.set(RsmfAdapter.NONE, {
                         virtual: true,
@@ -99,52 +81,49 @@ class RsmfAdapter
                         display: RsmfAdapter.NONE_DISPLAY,
                     });
                 }
-                this.#eventsByConversationId.get(RsmfAdapter.NONE).push(event);
-            }
-        });
-
-        // Pass 2: Validate and index parent relationships
-        this.#eventsOrdered.forEach(event => {
-            const id = RsmfAdapter.getStringOrNull(event, 'id');
-            let conversationId = RsmfAdapter.getStringOrNull(event, 'conversation');
-
-            let parentId = RsmfAdapter.getStringOrNull(event, 'parent');
-            if (parentId != null) {
-                let parent = this.#eventsById.get(parentId);
-                if (parent !== null) {
-                    // TODO more consistency checks
-                    let parentConversationId = RsmfAdapter.getStringOrNull(parent, 'conversation');
-                    if (parentConversationId !== null) {
-                        if (!conversationId) {
-                            console.warn("Inferring event conversation from parent");
-                            event['invalid'] = 'Event has no conversation but parent does';
-                            event['conversation'] = parentConversationId;
-                            conversationId = parentConversationId;
-                        }
-                        else if (conversationId !== parentConversationId) {
-                            console.warn("Ignoring parent relationship from different conversation", id, conversationId, parentId, parentConversationId);
-                            event['invalid'] = "Parent is in different conversation";
-                        }
-                    }
-                }
-                else {
-                    console.warn("Found event with non-existent parent ID", parentId);
-                    parent = {
-                        virtual: true,
-                        id: parentId,
-                        conversation: conversationId,
-                        timestamp: event.timestamp,
-                    }
-                    this.#eventsById.set(parentId, parent);
-                    let roots = RsmfAdapter.#getOrSet(this.#eventsByParentId, RsmfAdapter.NONE, []);
-                    roots.push(parent);
-                }
             }
 
-            let key = parentId ?? RsmfAdapter.NONE;
-            let events = RsmfAdapter.#getOrSet(this.#eventsByParentId, key, []);
-            events.push(event);
+            // Normalize indexed fields: use NONE for missing conversation/parent
+            if (!event.hasOwnProperty('conversation')) event.conversation = RsmfAdapter.NONE;
+            if (!event.hasOwnProperty('parent')) event.parent = RsmfAdapter.NONE;
+
+            // Check for duplicate ID
+            if (id !== null && this.#events.count('id', id)) {
+                console.warn('Duplicate RSMF event ID', id);
+                RsmfAdapter.#addError(event, `Duplicate event:${id}`);
+            }
+
+            this.#events.add(event);
         });
+
+        // Pass 2: Validate parent relationships
+        sorted.forEach(event => {
+            let parentId = event.parent;
+            if (parentId === RsmfAdapter.NONE) return;
+
+            if (!this.#events.count('id', parentId)) {
+                RsmfAdapter.#addError(event, `Parent event:${parentId} not found`);
+                return;
+            }
+
+            let parent = this.#events.entries('id', parentId)[0];
+            let parentConv = parent.conversation;
+            let eventConv = event.conversation;
+
+            if (parentConv !== RsmfAdapter.NONE && eventConv === RsmfAdapter.NONE) {
+                RsmfAdapter.#addError(event,
+                    `This event:${event.id} has conversation:${RsmfAdapter.NONE_DISPLAY} but parent event:${parentId} is in conversation:${parentConv}`);
+            }
+            else if (parentConv !== RsmfAdapter.NONE && eventConv !== RsmfAdapter.NONE && eventConv !== parentConv) {
+                RsmfAdapter.#addError(event,
+                    `This event:${event.id} is in conversation:${eventConv} but parent event:${parentId} is in conversation:${parentConv}`);
+            }
+        });
+    }
+
+    static #addError(event, message) {
+        if (!event.errors) event.errors = [];
+        event.errors.push(message);
     }
 
     /**
@@ -218,7 +197,8 @@ class RsmfAdapter
      */
     getEventById(id)
     {
-        return this.#eventsById.get(id);
+        let results = this.#events.entries('id', id);
+        return results.length > 0 ? results[0] : undefined;
     }
 
     /**
@@ -228,8 +208,8 @@ class RsmfAdapter
      */
     getEventsByConversationId(conversationId)
     {
-        if (conversationId === RsmfAdapter.ALL) return this.#eventsOrdered;
-        return this.#eventsByConversationId.get(conversationId) ?? [];
+        if (conversationId === RsmfAdapter.ALL) return this.#events.all();
+        return this.#events.entries('conversation', conversationId);
     }
 
     /**
@@ -239,10 +219,9 @@ class RsmfAdapter
      */
     getRootEvents(conversationId)
     {
-        var events = this.#eventsByParentId.get(RsmfAdapter.NONE) ?? [];
-        if (conversationId === RsmfAdapter.ALL) return events;
-        if (conversationId === RsmfAdapter.NONE) return events.filter(event => !event.hasOwnProperty('conversation'));
-        return events.filter(event => event['conversation'] === conversationId);
+        let roots = this.#events.entries('parent', RsmfAdapter.NONE);
+        if (conversationId === RsmfAdapter.ALL) return roots;
+        return roots.filter(event => event.conversation === conversationId);
     }
 
     /**
@@ -252,8 +231,8 @@ class RsmfAdapter
      */
     getEventsByParentId(parentId)
     {
-        if (parentId === RsmfAdapter.ALL) return this.#eventsOrdered;
-        return this.#eventsByParentId.get(parentId) ?? [];
+        if (parentId === RsmfAdapter.ALL) return this.#events.all();
+        return this.#events.entries('parent', parentId);
     }
 
     /**
@@ -281,14 +260,6 @@ class RsmfAdapter
     {
         return Date.parse(timestamp);
     }
-
-    static #getOrSet(map, key, value)
-    {
-        if (map.has(key)) return map.get(key);
-        map.set(key, value);
-        return value;
-    }
-
 }
 
-if (typeof module !== 'undefined') module.exports = RsmfAdapter;
+export default RsmfAdapter;
