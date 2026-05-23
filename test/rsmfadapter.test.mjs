@@ -47,6 +47,30 @@ describe('RsmfAdapter', () => {
     });
   });
 
+  describe('getConversationsByPlatform', () => {
+    test('returns conversations for known platform', () => {
+      const convs = adapter.getConversationsByPlatform('slack');
+      assert.ok(convs.length > 0);
+      convs.forEach(c => assert.strictEqual(c.platform, 'slack'));
+    });
+
+    test('returns empty array for unknown platform', () => {
+      assert.deepStrictEqual(adapter.getConversationsByPlatform('teams'), []);
+    });
+  });
+
+  describe('getConversationsByType', () => {
+    test('returns conversations for known type', () => {
+      const convs = adapter.getConversationsByType('channel');
+      assert.ok(convs.length > 0);
+      convs.forEach(c => assert.strictEqual(c.type, 'channel'));
+    });
+
+    test('returns empty array for unknown type', () => {
+      assert.deepStrictEqual(adapter.getConversationsByType('dm'), []);
+    });
+  });
+
   describe('getEventById', () => {
     test('returns known event', () => {
       const e = adapter.getEventById('CHAF1FWN5_1554216835.0015');

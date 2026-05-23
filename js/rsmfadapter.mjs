@@ -26,8 +26,8 @@ class RsmfAdapter
     static ALL_DISPLAY = 'ALL';
 
     #manifest;
-    #participantsById = new Map();
-    #conversationsById = new Map();
+    #participants; // IndexedList with index on id
+    #conversations; // IndexedList with indexes on id, platform, type
     #events; // IndexedList with indexes on id, conversation, parent, participant
 
     /**
@@ -37,13 +37,19 @@ class RsmfAdapter
     constructor(manifest)
     {
         this.#manifest = manifest;
+        this.#participants = new IndexedList(null, ['id']);
+        this.#conversations = new IndexedList(null, ['id', 'platform', 'type']);
         this.#events = new IndexedList(null, ['id', 'conversation', 'parent', 'participant']);
 
         // Index participants by ID
         this.#manifest['participants'].forEach(participant => {
             var id = participant['id'];
             if (typeof id === 'string') {
-                this.#participantsById.set(id, participant);
+                if (this.#participants.count('id', id)) {
+                    console.warn('Duplicate RSMF participant ID', id);
+                    RsmfAdapter.#addError(participant, `Duplicate participant:${id}`);
+                }
+                this.#participants.add(participant);
             }
             else console.warn('RSMF participant has invalid ID', id);
         });
@@ -52,10 +58,11 @@ class RsmfAdapter
         this.#manifest['conversations'].forEach(conversation => {
             var id = conversation['id'];
             if (typeof id === 'string') {
-                if (this.#conversationsById.has(id)) {
+                if (this.#conversations.count('id', id)) {
                     console.warn('Duplicate RSMF conversation ID', id);
+                    RsmfAdapter.#addError(conversation, `Duplicate conversation:${id}`);
                 }
-                this.#conversationsById.set(id, conversation);
+                this.#conversations.add(conversation);
             }
             else console.warn('RSMF conversation has invalid ID', id);
         });
@@ -69,13 +76,13 @@ class RsmfAdapter
             let conversationId = RsmfAdapter.getStringOrNull(event, 'conversation');
 
             // Validate conversation reference
-            if (conversationId !== null && !this.#conversationsById.has(conversationId)) {
+            if (conversationId !== null && !this.#conversations.count('id', conversationId)) {
                 console.warn("Found event with non-existent conversation ID", conversationId);
-                this.#conversationsById.set(conversationId, { virtual: true, id: conversationId });
+                this.#conversations.add({ virtual: true, id: conversationId });
             }
             if (conversationId === null) {
-                if (!this.#conversationsById.has(RsmfAdapter.NONE)) {
-                    this.#conversationsById.set(RsmfAdapter.NONE, {
+                if (!this.#conversations.count('id', RsmfAdapter.NONE)) {
+                    this.#conversations.add({
                         virtual: true,
                         id: RsmfAdapter.NONE,
                         display: RsmfAdapter.NONE_DISPLAY,
@@ -142,7 +149,7 @@ class RsmfAdapter
      */
     getParticipants()
     {
-        return this.#manifest['participants'];
+        return this.#participants.all();
     }
 
     /**
@@ -151,7 +158,8 @@ class RsmfAdapter
      */
     getParticipantById(id)
     {
-        return this.#participantsById.get(id);
+        let results = this.#participants.entries('id', id);
+        return results.length > 0 ? results[0] : undefined;
     }
 
     /**
@@ -159,7 +167,7 @@ class RsmfAdapter
      */
     getConversations()
     {
-        return this.#conversationsById.values().toArray();
+        return this.#conversations.all();
     }
 
     /**
@@ -168,7 +176,28 @@ class RsmfAdapter
      */
     getConversationById(id)
     {
-        return this.#conversationsById.get(id);
+        let results = this.#conversations.entries('id', id);
+        return results.length > 0 ? results[0] : undefined;
+    }
+
+    /**
+     * Get conversations by platform.
+     * @param {string} platform
+     * @returns {Object[]}
+     */
+    getConversationsByPlatform(platform)
+    {
+        return this.#conversations.entries('platform', platform);
+    }
+
+    /**
+     * Get conversations by type.
+     * @param {string} type
+     * @returns {Object[]}
+     */
+    getConversationsByType(type)
+    {
+        return this.#conversations.entries('type', type);
     }
 
     /**
