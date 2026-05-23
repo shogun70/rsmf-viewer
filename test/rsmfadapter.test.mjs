@@ -1,9 +1,11 @@
-const { test, describe } = require('node:test');
-const assert = require('node:assert');
-const { readFileSync } = require('node:fs');
-const { join } = require('node:path');
+import { test, describe } from 'node:test';
+import assert from 'node:assert';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import RsmfAdapter from '../js/rsmfadapter.mjs';
 
-const RsmfAdapter = require('../js/rsmfadapter.js');
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const manifest = JSON.parse(readFileSync(join(__dirname, 'rsmf_manifest.json'), 'utf8'));
 const adapter = new RsmfAdapter(manifest);
 
@@ -79,12 +81,12 @@ describe('RsmfAdapter', () => {
     test('root events for CHAF1FWN5 have no parent', () => {
       const roots = adapter.getRootEvents('CHAF1FWN5');
       assert.ok(roots.length > 0);
-      roots.forEach(e => assert.strictEqual(e.parent, undefined));
+      roots.forEach(e => assert.strictEqual(e.parent, RsmfAdapter.NONE));
     });
 
     test('root events for all conversations (null)', () => {
       const roots = adapter.getRootEvents(null);
-      roots.forEach(e => assert.strictEqual(e.parent, undefined));
+      roots.forEach(e => assert.strictEqual(e.parent, RsmfAdapter.NONE));
     });
   });
 
@@ -96,7 +98,7 @@ describe('RsmfAdapter', () => {
     });
 
     test('returns empty for event with no children', () => {
-      assert.deepStrictEqual(adapter.getEventsByParentId('CHAF1FWN5_1554216835.0015'), []);
+      assert.deepStrictEqual(adapter.getEventsByParentId('CHAF1FWN5_1554216759.0009'), []);
     });
 
     test('returns all events when passed null (ALL)', () => {
@@ -110,7 +112,7 @@ describe('RsmfAdapter', () => {
       const events = adapter.getEvents('CHAF1FWN5', '');
       events.forEach(e => {
         assert.strictEqual(e.conversation, 'CHAF1FWN5');
-        assert.strictEqual(e.parent, undefined);
+        assert.strictEqual(e.parent, RsmfAdapter.NONE);
       });
     });
 
@@ -130,7 +132,7 @@ describe('RsmfAdapter', () => {
     test('orphan event is accessible by id', () => {
       const e = adapter.getEventById('GHJQZ4YBH_1554220310.101');
       assert.strictEqual(e.body, "I'm an orphan");
-      assert.strictEqual(e.conversation, undefined);
+      assert.strictEqual(e.conversation, RsmfAdapter.NONE);
     });
 
     test('orphan events appear in NONE conversation', () => {
@@ -148,6 +150,15 @@ describe('RsmfAdapter', () => {
       const roots = adapter.getRootEvents('');
       assert.ok(roots.some(e => e.id === 'GHJQZ4YBH_1554220310.101'));
       assert.ok(!roots.some(e => e.id === 'GHJQZ4YBH_1554220310.102'));
+    });
+  });
+
+  describe('conversation inferred from parent', () => {
+    test('event with no conversation but parent in CHAF1FWN5 gets an error', () => {
+      const e = adapter.getEventById('CHILD_NO_CONV_001');
+      assert.ok(e.errors?.length > 0, 'Expected errors on CHILD_NO_CONV_001');
+      assert.ok(e.errors[0].includes('conversation:NONE'), 'Error should mention NONE conversation');
+      assert.ok(e.errors[0].includes('conversation:CHAF1FWN5'), 'Error should mention parent conversation');
     });
   });
 
