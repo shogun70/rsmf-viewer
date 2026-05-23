@@ -2205,6 +2205,14 @@
       "body": "I'm the child of an orphan",
       "participant": "WGSJT8SKS",
       "timestamp": "2019-04-02T15:51:51.022Z"
+    },
+    {
+      "id": "CHILD_NO_CONV_001",
+      "parent": "CHAF1FWN5_1554216835.0015",
+      "type": "message",
+      "body": "I have a parent with a conversation but I don't",
+      "participant": "WGSJT8SKS",
+      "timestamp": "2019-04-02T15:52:00.000Z"
     }
   ],
   "version": "1.0.0"
