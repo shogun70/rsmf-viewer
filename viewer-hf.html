@@ -41,6 +41,30 @@
     })();
     if (!basePath.endsWith('/')) basePath += '/';
 
+    var emojisReady = fetch('./css/emojis.json').then(r => r.json()).then(table => {
+      table.shortnameMap = {};
+      table.emojis.forEach(e => { table.shortnameMap[e.shortname] = e; });
+      return table;
+    });
+
+    var emojiMap = { '+1': 'thumbs_up', '-1': 'thumbs_down', '100': 'hundred_points', '1234': 'input_numbers' };
+
+    function emojiLookup(str, table) {
+      let shortname = emojiMap.hasOwnProperty(str) ? emojiMap[str] : str;
+      let key = `:${shortname}:`;
+      return table.shortnameMap.hasOwnProperty(key) ? table.shortnameMap[key].emoji : `:${str}:`;
+    }
+
+    function withEmoji(text, table) {
+      if (typeof text !== 'string') return text;
+      let div = document.createElement('div');
+      div.textContent = text;
+      text = div.innerHTML;
+      return text.replace(/:([a-zA-Z0-9_+-]+(?:::skin-tone-\d)?):/g, (match, shortname) => {
+        let emoji = emojiLookup(shortname, table);
+        return `<span title=":${shortname}:">${emoji}</span>`;
+      });
+    }
     function getInitials(name) {
       let parts = name.replace(/[^a-zA-Z\s]/g, '').trim().split(/[\s._-]+/);
       if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -73,7 +97,7 @@
           participant: event.participant,
           participantName: participant?.display || event.participant || 'Unknown',
           timestamp: event.timestamp || '',
-          body: event.body || '',
+          body: withEmoji(event.body || '', emojisTable),
           attachments: (event.attachments || []).map(att => ({
             id: att.id, display: att.display, url: basePath + att.id,
             isImage: /\.(jpg|jpeg|gif|png)$/i.test(att.display)
@@ -135,7 +159,7 @@
               <span>&nbsp;&nbsp;</span>
               <time expr:_text="timestamp"></time>
             </header>
-            <p expr:_text="body"></p>
+            <p expr:_html="body"></p>
             <haz:each select="attachments">
               <figure>
                 <haz:if test="isImage">
@@ -213,6 +237,7 @@ import RsmfAdapter from './js/rsmfadapter.mjs';
 let url = basePath + 'rsmf_manifest.json';
 let manifest = await fetch(url).then(r => r.json());
 globalThis.rsmf = new RsmfAdapter(manifest);
+globalThis.emojisTable = await emojisReady;
 
 await Meeko.framer.start();
 
