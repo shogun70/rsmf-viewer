@@ -114,19 +114,27 @@
               <time expr:_text="timestamp"></time>
             </header>
             <p expr:_text="body"></p>
-            <figure haz:each="attachments">
-              <img haz:if="isImage" class="attachment" expr:src="url" expr:title="display"/>
-              <script for>({ onclick() { let popup = document.getElementById('popup'); popup.querySelector('img').src = this.element.src; popup.showModal(); } })</script>
-              <a haz:unless="isImage" expr:href="url" target="_blank" expr:_text="display"></a>
-            </figure>
+            <haz:each select="attachments">
+              <figure>
+                <haz:if test="isImage">
+                  <img class="attachment" expr:src="url" expr:title="display"/>
+                  <script for>({ onclick() { let popup = document.getElementById('popup'); popup.querySelector('img').src = this.element.src; popup.showModal(); } })</script>
+                </haz:if>
+                <haz:unless test="isImage">
+                  <a expr:href="url" target="_blank" expr:_text="display"></a>
+                </haz:unless>
+              </figure>
+            </haz:each>
           </article>
         </haz:template>
-        <div haz:each="messages">
+        <haz:each select="messages">
           <haz:call name="message"></haz:call>
-          <div role="group" class="thread" haz:each="children">
-            <haz:call name="message"></haz:call>
-          </div>
-        </div>
+          <haz:each select="children">
+            <div role="group" class="thread">
+              <haz:call name="message"></haz:call>
+            </div>
+          </haz:each>
+        </haz:each>
         </section>
       </hf-transform>
     </hf-body>
@@ -141,9 +149,11 @@
     <hf-body condition="loaded">
       <hf-transform type="hazard" format="json">
         <h2 expr:_text="display"></h2>
-        <h3 haz:if="email" expr:_text="email"></h3>
-        <img haz:if="avatar" class="avatar" expr:src="avatarUrl" />
-        <script for>({ onclick() { let popup = document.getElementById('popup'); popup.querySelector('img').src = this.element.src; popup.showModal(); } })</script>
+        <haz:if test="email"><h3 expr:_text="email"></h3></haz:if>
+        <haz:if test="avatar">
+          <img class="avatar" expr:src="avatarUrl" />
+          <script for>({ onclick() { let popup = document.getElementById('popup'); popup.querySelector('img').src = this.element.src; popup.showModal(); } })</script>
+        </haz:if>
       </hf-transform>
     </hf-body>
   </hf-frame>
