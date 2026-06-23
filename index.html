@@ -19,7 +19,7 @@
               }
             });
   </script>
-  <script src="js/bindings.js"></script>
+  <script src="./js/vendor/behaviors.js"></script>
 
   <link rel="stylesheet" href="css/style.css">
   <meta name="description" content="">
@@ -100,7 +100,7 @@
 <dialog id="dialog">
   <form id="configure" method="dialog">
     <script>
-      bindings.register(null, null, [
+      behaviors.define(null, null, [
         {
           type: 'click',
           action: (e) => {
@@ -138,7 +138,7 @@
       <label>Drag the RSMF email or zip file or click to select.</label>
       <input type="file" id="file-picker" title="" required accept=".rsmf, .eml, .zip, message/rfc822, application/zip" />
       <script>
-      bindings.register(null, null, [{
+      behaviors.define(null, null, [{
         type: 'change',
         action: (ev) => window.onFilePicker(ev.currentTarget)
       }])
