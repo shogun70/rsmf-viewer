@@ -186,9 +186,10 @@ async function onFilePicker(filesPicker) {
       }
     })
     .then(() => {
+      const viewerPage = new URLSearchParams(location.search).get('viewer') || 'viewer.html';
       const viewer = document.querySelector('#viewer');
       document.getElementById('dialog').close();
-      viewer.src = 'viewer.html?data=' + DATA_PATH;
+      viewer.src = viewerPage + '?data=' + DATA_PATH;
     })
     .catch((error) => {
       filesPicker.setCustomValidity(error.message)
