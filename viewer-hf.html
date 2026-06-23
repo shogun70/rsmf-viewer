@@ -13,7 +13,12 @@
     aside { width: 25%; background-color: mintcream; padding: 1em; box-sizing: border-box; overflow-y: auto; }
     hf-frame { display: block; }
     figure { margin: 0; }
-    .message { margin-bottom: 1em; }
+    .message, .join, .leave, .disclaimer { margin-bottom: 1em; padding-bottom: 0.75em; position: relative; }
+    .message::after, .join::after, .leave::after, .disclaimer::after { content: ''; position: absolute; bottom: 0; left: 25%; width: 50%; border-bottom: 1px solid #ccc; }
+    .join, .leave { font-style: italic; color: #888; }
+    .disclaimer { font-style: italic; color: #666; border-left: 2px solid #aaa; padding-left: 0.5em; }
+    .deleted { background: #fff0f0; border-left: 3px solid #e55; padding-left: 0.5em; }
+    .deleted header::after { content: 'DELETED'; background: #e55; color: white; font-size: 0.7em; padding: 0.1em 0.4em; border-radius: 3px; vertical-align: middle; margin-left: 0.5em; }
     .thread { margin-left: 2em; }
     time { color: gray; font-size: small; }
     img.attachment { max-width: 10vw; max-height: 20vh; border: 2px solid gray; }
@@ -98,6 +103,8 @@
           participantName: participant?.display || event.participant || 'Unknown',
           timestamp: event.timestamp || '',
           body: withEmoji(event.body || '', emojisTable),
+          deleted: !!event.deleted,
+          messageClass: (event.type || 'message') + (event.deleted ? ' deleted' : ''),
           attachments: (event.attachments || []).map(att => ({
             id: att.id, display: att.display, url: basePath + att.id,
             isImage: /\.(jpg|jpeg|gif|png)$/i.test(att.display)
@@ -152,7 +159,7 @@
       <hf-transform type="hazard" format="json">
         <section role="feed">
         <haz:template name="message">
-          <article class="message">
+          <article expr:class="messageClass">
             <header>
               <a href="#" expr:data-participant="participant">@<span expr:_text="participantName"></span></a>
               <script for>({ onclick(e) { e.preventDefault(); showParticipant(this.element.dataset.participant); } })</script>
