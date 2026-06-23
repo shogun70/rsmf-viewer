@@ -1,0 +1,208 @@
+<!doctype html>
+<html custom-hf="HyperFrameset" lang="">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RSMF Viewer</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    html, body { width: 100%; height: 100%; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    body { display: flex; }
+    nav { width: 25%; background-color: lightgray; padding: 1em; box-sizing: border-box; overflow-y: auto; }
+    main { width: 50%; padding: 1em; box-sizing: border-box; overflow-y: auto; }
+    aside { width: 25%; background-color: mintcream; padding: 1em; box-sizing: border-box; overflow-y: auto; }
+    hf-frame { display: block; }
+    .message { margin-bottom: 1em; }
+    .thread { margin-left: 2em; }
+    time { color: gray; font-size: small; }
+    img.attachment { max-width: 10vw; max-height: 20vh; border: 2px solid gray; }
+    img.avatar { max-width: 10vw; max-height: 20vh; border: 2px solid gray; }
+    img.attachment, img.avatar { cursor: pointer; }
+    #popup::backdrop { background-color: rgba(0, 0, 0, 0.75); }
+    #popup img { max-width: 80vw; max-height: 80vh; }
+  </style>
+  <script>
+    var basePath = (() => {
+      const options = new URLSearchParams(document.location.search);
+      return options.has('data') ? options.get('data') : 'data';
+    })();
+    if (!basePath.endsWith('/')) basePath += '/';
+  </script>
+</head>
+<body>
+<script for>
+({
+  lookup: function(url) { return 'messages'; }
+})
+</script>
+
+<nav>
+  <form data-target="messages">
+    <label>Filter by conversation:</label><br />
+    <select name="conversationId"></select>
+  </form>
+</nav>
+
+<main>
+  <hf-frame targetname="messages">
+    <hf-body condition="loaded">
+      <hf-transform type="hazard" format="json">
+        <div haz:each="messages">
+          <div class="message">
+            <a href="#" expr:data-participant="participant">@<span expr:_text="participantName"></span></a>
+            <span>&nbsp;&nbsp;</span>
+            <time expr:_text="timestamp"></time>
+            <div expr:_text="body"></div>
+            <div haz:each="attachments">
+              <img haz:if="isImage" class="attachment" expr:src="url" />
+              <a haz:unless="isImage" expr:href="url" target="_blank" expr:_text="display"></a>
+            </div>
+          </div>
+          <div class="thread" haz:each="children">
+            <div class="message">
+              <a href="#" expr:data-participant="participant">@<span expr:_text="participantName"></span></a>
+              <span>&nbsp;&nbsp;</span>
+              <time expr:_text="timestamp"></time>
+              <div expr:_text="body"></div>
+              <div haz:each="attachments">
+                <img haz:if="isImage" class="attachment" expr:src="url" />
+                <a haz:unless="isImage" expr:href="url" target="_blank" expr:_text="display"></a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </hf-transform>
+    </hf-body>
+    <hf-body condition="loading">
+      <p>Select a conversation...</p>
+    </hf-body>
+  </hf-frame>
+</main>
+
+<aside>
+  <hf-frame targetname="participant">
+    <hf-body condition="loaded">
+      <hf-transform type="hazard" format="json">
+        <h2 expr:_text="display"></h2>
+        <h3 haz:if="email" expr:_text="email"></h3>
+        <img haz:if="avatar" class="avatar" expr:src="avatarUrl" />
+      </hf-transform>
+    </hf-body>
+  </hf-frame>
+</aside>
+
+<dialog id="popup">
+  <img src="" />
+</dialog>
+
+</body>
+
+<script type="module">
+import './js/vendor/HyperFrameset/HyperFrameset.mjs';
+import RsmfAdapter from './js/rsmfadapter.mjs';
+
+// Load manifest and initialize
+let url = basePath + 'rsmf_manifest.json';
+let manifest = await fetch(url).then(r => r.json());
+let rsmf = new RsmfAdapter(manifest);
+
+// Populate conversation select
+let select = document.querySelector('select[name="conversationId"]');
+let allOption = document.createElement('option');
+allOption.value = '';
+allOption.textContent = 'ALL';
+select.appendChild(allOption);
+rsmf.getConversations().forEach(conv => {
+  let option = document.createElement('option');
+  option.value = conv.id;
+  option.textContent = conv.display || conv.id;
+  select.appendChild(option);
+});
+
+// Start HyperFrameset and wait until ready
+await Meeko.framer.start();
+
+// Intercept form submissions
+document.addEventListener('submit', (e) => {
+  e.preventDefault();
+  let form = e.target;
+  let targetName = form.getAttribute('data-target');
+  if (!targetName) return;
+
+  let frameEl = document.querySelector(`hf-frame[targetname="${targetName}"]`);
+  if (!frameEl || !frameEl.$) return;
+
+  let conversationId = form.elements['conversationId']?.value || null;
+  let data = buildMessagesData(conversationId, rsmf);
+  frameEl.load({ url: document.URL, type: 'json', document: data });
+});
+
+// Handle image popup
+document.addEventListener('click', (e) => {
+  let img = e.target.closest('img.attachment, img.avatar');
+  if (!img) return;
+  let popup = document.getElementById('popup');
+  popup.querySelector('img').src = img.src;
+  popup.showModal();
+  popup.onclick = () => popup.close();
+});
+
+// Handle participant clicks
+document.addEventListener('click', (e) => {
+  let link = e.target.closest('[data-participant]');
+  if (!link) return;
+  e.preventDefault();
+  let participantId = link.dataset.participant;
+  let participant = rsmf.getParticipantById(participantId);
+  if (!participant) return;
+
+  let frameEl = document.querySelector('hf-frame[targetname="participant"]');
+  if (!frameEl || !frameEl.$) return;
+
+  let data = {
+    display: participant.display || participant.id,
+    email: participant.email || null,
+    avatar: participant.avatar || null,
+    avatarUrl: participant.avatar ? basePath + participant.avatar : null
+  };
+  frameEl.load({ url: document.URL, type: 'json', document: data });
+});
+
+// Auto-submit on select change
+select.addEventListener('change', (e) => {
+  e.target.form.requestSubmit();
+});
+
+// Load all messages on page load once frame is ready
+select.form.requestSubmit();
+
+function buildMessagesData(conversationId, rsmf) {
+  let events = rsmf.getEvents(conversationId, RsmfAdapter.NONE);
+  return {
+    messages: events.map(event => buildEventData(event, rsmf, true))
+  };
+}
+
+function buildEventData(event, rsmf, includeChildren) {
+  let participant = rsmf.getParticipantById(event.participant);
+  let data = {
+    id: event.id,
+    participant: event.participant,
+    participantName: participant?.display || event.participant || 'Unknown',
+    timestamp: event.timestamp || '',
+    body: event.body || '',
+    attachments: (event.attachments || []).map(att => ({
+      id: att.id,
+      display: att.display,
+      url: basePath + att.id,
+      isImage: /\.(jpg|jpeg|gif|png)$/i.test(att.display)
+    }))
+  };
+  if (includeChildren) {
+    let children = rsmf.getEvents(null, event.id);
+    data.children = children.map(child => buildEventData(child, rsmf, false));
+  }
+  return data;
+}
+</script>
+</html>
