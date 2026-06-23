@@ -12,6 +12,7 @@
     main { width: 50%; padding: 1em; box-sizing: border-box; overflow-y: auto; }
     aside { width: 25%; background-color: mintcream; padding: 1em; box-sizing: border-box; overflow-y: auto; }
     hf-frame { display: block; }
+    figure { margin: 0; }
     .message { margin-bottom: 1em; }
     .thread { margin-left: 2em; }
     time { color: gray; font-size: small; }
@@ -103,26 +104,30 @@
   <hf-frame targetname="messages">
     <hf-body condition="loaded">
       <hf-transform type="hazard" format="json">
+        <section role="feed">
         <haz:template name="message">
-          <div class="message">
-            <a href="#" expr:data-participant="participant">@<span expr:_text="participantName"></span></a>
-            <script for>({ onclick(e) { e.preventDefault(); showParticipant(this.element.dataset.participant); } })</script>
-            <span>&nbsp;&nbsp;</span>
-            <time expr:_text="timestamp"></time>
-            <div expr:_text="body"></div>
-            <div haz:each="attachments">
-              <img haz:if="isImage" class="attachment" expr:src="url" />
+          <article class="message">
+            <header>
+              <a href="#" expr:data-participant="participant">@<span expr:_text="participantName"></span></a>
+              <script for>({ onclick(e) { e.preventDefault(); showParticipant(this.element.dataset.participant); } })</script>
+              <span>&nbsp;&nbsp;</span>
+              <time expr:_text="timestamp"></time>
+            </header>
+            <p expr:_text="body"></p>
+            <figure haz:each="attachments">
+              <img haz:if="isImage" class="attachment" expr:src="url" expr:title="display"/>
               <script for>({ onclick() { let popup = document.getElementById('popup'); popup.querySelector('img').src = this.element.src; popup.showModal(); } })</script>
               <a haz:unless="isImage" expr:href="url" target="_blank" expr:_text="display"></a>
-            </div>
-          </div>
+            </figure>
+          </article>
         </haz:template>
         <div haz:each="messages">
           <haz:call name="message"></haz:call>
-          <div class="thread" haz:each="children">
+          <div role="group" class="thread" haz:each="children">
             <haz:call name="message"></haz:call>
           </div>
         </div>
+        </section>
       </hf-transform>
     </hf-body>
     <hf-body condition="loading">
