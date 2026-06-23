@@ -99,8 +99,8 @@
 <body>
 <dialog id="dialog">
   <form id="configure" method="dialog">
-    <script>
-      behaviors.define(null, null, [
+    <script for>
+      ([
         {
           type: 'click',
           action: (e) => {
@@ -131,17 +131,19 @@
             fileInput.dispatchEvent(new Event('change'));
           }
         }
-      ]);
+      ])
     </script>
     <h1>RSMF Viewer</h1>
     <fieldset>
       <label>Drag the RSMF email or zip file or click to select.</label>
       <input type="file" id="file-picker" title="" required accept=".rsmf, .eml, .zip, message/rfc822, application/zip" />
-      <script>
-      behaviors.define(null, null, [{
-        type: 'change',
-        action: (ev) => window.onFilePicker(ev.currentTarget)
-      }])
+      <script for>
+      ([
+        {
+          type: 'change',
+          action: (ev) => window.onFilePicker(ev.currentTarget)
+        }
+      ])
       </script>
     </fieldset>
   </form>
