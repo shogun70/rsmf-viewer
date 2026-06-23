@@ -5,7 +5,8 @@
   "description": "Viewer for rsmf.zip files",
   "scripts": {
     "start": "serve .",
-    "test": "node --test"
+    "test": "node --test",
+    "update-vendor": "node update-vendor.mjs"
   },
   "devDependencies": {
     "serve": "14.2.4"
