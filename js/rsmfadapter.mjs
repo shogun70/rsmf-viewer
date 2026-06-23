@@ -25,6 +25,9 @@ class RsmfAdapter
     /** @type {string} Display label for the ALL sentinel. */
     static ALL_DISPLAY = 'ALL';
 
+    NONE = RsmfAdapter.NONE;
+    ALL = RsmfAdapter.ALL;
+
     #manifest;
     #participants; // IndexedList with index on id
     #conversations; // IndexedList with indexes on id, platform, type

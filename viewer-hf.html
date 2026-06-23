@@ -28,11 +28,7 @@
     })();
     if (!basePath.endsWith('/')) basePath += '/';
 
-    var RSMF_ALL = null;
-    var RSMF_NONE = '';
-
     function showParticipant(id) {
-      let rsmf = document.body.rsmf;
       let participant = rsmf.getParticipantById(id);
       if (!participant) return;
       let frameEl = document.querySelector('hf-frame[targetname="participant"]');
@@ -46,8 +42,7 @@
     }
 
     function buildMessagesData(conversationId) {
-      let rsmf = document.body.rsmf;
-      let events = rsmf.getEvents(conversationId, RSMF_NONE);
+      let events = rsmf.getEvents(conversationId, rsmf.NONE);
       let buildEvent = (event, includeChildren) => {
         let participant = rsmf.getParticipantById(event.participant);
         let data = {
@@ -62,7 +57,7 @@
           }))
         };
         if (includeChildren) {
-          data.children = rsmf.getEvents(RSMF_ALL, event.id).map(child => buildEvent(child, false));
+          data.children = rsmf.getEvents(rsmf.ALL, event.id).map(child => buildEvent(child, false));
         }
         return data;
       };
@@ -162,10 +157,7 @@ import RsmfAdapter from './js/rsmfadapter.mjs';
 
 let url = basePath + 'rsmf_manifest.json';
 let manifest = await fetch(url).then(r => r.json());
-let rsmf = new RsmfAdapter(manifest);
-
-// Attach rsmf to body so behaviors can access it
-document.body.rsmf = rsmf;
+globalThis.rsmf = new RsmfAdapter(manifest);
 
 // Populate conversation select
 let select = document.querySelector('select[name="conversationId"]');
