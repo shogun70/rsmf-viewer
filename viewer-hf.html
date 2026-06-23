@@ -17,8 +17,20 @@
     .thread { margin-left: 2em; }
     time { color: gray; font-size: small; }
     img.attachment { max-width: 10vw; max-height: 20vh; border: 2px solid gray; }
-    img.avatar { max-width: 10vw; max-height: 20vh; border: 2px solid gray; }
-    img.attachment, img.avatar { cursor: pointer; }
+    img.attachment { cursor: pointer; }
+    figure.avatar { margin: 0; display: flex; justify-content: center; }
+    figure.avatar img { width: 96px; height: 96px; object-fit: cover; border-radius: 50%; cursor: pointer; }
+    .avatar-fallback {
+      width: 96px; height: 96px; border-radius: 50%;
+      background: #6b7280; color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2em; font-weight: bold;
+    }
+    .participant { text-align: center; }
+    .participant h2 { margin: 0.5em 0 0.25em; }
+    .participant dl { text-align: left; display: grid; grid-template-columns: auto 1fr; gap: 0.25em 0.5em; margin: 1em 0; }
+    .participant dt { font-weight: bold; }
+    .participant dd { margin: 0; overflow-wrap: break-word; }
     #popup::backdrop { background-color: rgba(0, 0, 0, 0.75); }
     #popup img { max-width: 80vw; max-height: 80vh; }
   </style>
@@ -29,16 +41,26 @@
     })();
     if (!basePath.endsWith('/')) basePath += '/';
 
+    function getInitials(name) {
+      let parts = name.replace(/[^a-zA-Z\s]/g, '').trim().split(/[\s._-]+/);
+      if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+      return (name[0] || '?').toUpperCase();
+    }
+
     function showParticipant(id) {
-      let participant = rsmf.getParticipantById(id);
-      if (!participant) return;
+      let p = rsmf.getParticipantById(id);
+      if (!p) return;
       let frameEl = document.querySelector('hf-frame[targetname="participant"]');
       if (!frameEl || !frameEl.$) return;
       frameEl.load({ url: document.URL, type: 'json', document: {
-        display: participant.display || participant.id,
-        email: participant.email || null,
-        avatar: participant.avatar || null,
-        avatarUrl: participant.avatar ? basePath + participant.avatar : null
+        id: p.id,
+        display: p.display || p.id,
+        initials: getInitials(p.display || p.id),
+        email: p.email || null,
+        emailHref: p.email ? 'mailto:' + p.email : null,
+        avatar: p.avatar || null,
+        avatarUrl: p.avatar ? basePath + p.avatar : null,
+        custom: p.custom || []
       }});
     }
 
@@ -148,12 +170,30 @@
   <hf-frame targetname="participant">
     <hf-body condition="loaded">
       <hf-transform type="hazard" format="json">
-        <h2 expr:_text="display"></h2>
-        <haz:if test="email"><h3 expr:_text="email"></h3></haz:if>
-        <haz:if test="avatar">
-          <img class="avatar" expr:src="avatarUrl" />
-          <script for>({ onclick() { let popup = document.getElementById('popup'); popup.querySelector('img').src = this.element.src; popup.showModal(); } })</script>
-        </haz:if>
+        <article class="participant">
+          <figure class="avatar">
+            <haz:if test="avatar">
+              <img class="avatar" expr:src="avatarUrl" expr:alt="display" />
+              <script for>({ onclick() { let popup = document.getElementById('popup'); popup.querySelector('img').src = this.element.src; popup.showModal(); } })</script>
+            </haz:if>
+            <haz:unless test="avatar">
+              <span class="avatar-fallback" expr:_text="initials"></span>
+            </haz:unless>
+          </figure>
+          <h2 expr:_text="display"></h2>
+          <dl>
+            <dt>ID</dt>
+            <dd expr:_text="id"></dd>
+            <haz:if test="email">
+              <dt>Email</dt>
+              <dd><a expr:href="emailHref" expr:_text="email"></a></dd>
+            </haz:if>
+            <haz:each select="custom">
+              <dt expr:_text="name"></dt>
+              <dd expr:_text="value"></dd>
+            </haz:each>
+          </dl>
+        </article>
       </hf-transform>
     </hf-body>
   </hf-frame>
