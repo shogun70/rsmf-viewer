@@ -85,9 +85,17 @@
     }
   })</script>
     <label>Filter by conversation:</label><br />
-    <select name="conversationId">
-    <script for>({ onchange(e) { this.element.form.requestSubmit(); } })</script>
-    </select>
+    <hf-frame targetname="conversations">
+      <hf-body condition="loaded">
+        <hf-transform type="hazard" format="json">
+          <select name="conversationId">
+          <script for>({ onchange() { this.element.form.requestSubmit(); } })</script>
+            <option value="">ALL</option>
+            <option haz:each="conversations" expr:value="id" expr:_text="display"></option>
+          </select>
+        </hf-transform>
+      </hf-body>
+    </hf-frame>
   </form>
 </nav>
 
@@ -151,22 +159,16 @@ let url = basePath + 'rsmf_manifest.json';
 let manifest = await fetch(url).then(r => r.json());
 globalThis.rsmf = new RsmfAdapter(manifest);
 
-// Populate conversation select
-let select = document.querySelector('select[name="conversationId"]');
-let allOption = document.createElement('option');
-allOption.value = '';
-allOption.textContent = 'ALL';
-select.appendChild(allOption);
-rsmf.getConversations().forEach(conv => {
-  let option = document.createElement('option');
-  option.value = conv.id;
-  option.textContent = conv.display || conv.id;
-  select.appendChild(option);
-});
-
 await Meeko.framer.start();
 
+// Populate conversation select
+let convFrame = document.querySelector('hf-frame[targetname="conversations"]');
+
+convFrame.load({ url: document.URL, type: 'json', document: {
+  conversations: rsmf.getConversations().map(c => ({ id: c.id, display: c.display || c.id }))
+}});
+
 // Load all messages on page load
-select.form.requestSubmit();
+document.querySelector('form[data-target="messages"]').requestSubmit();
 </script>
 </html>
