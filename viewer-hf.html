@@ -27,6 +27,47 @@
       return options.has('data') ? options.get('data') : 'data';
     })();
     if (!basePath.endsWith('/')) basePath += '/';
+
+    var RSMF_ALL = null;
+    var RSMF_NONE = '';
+
+    function showParticipant(id) {
+      let rsmf = document.body.rsmf;
+      let participant = rsmf.getParticipantById(id);
+      if (!participant) return;
+      let frameEl = document.querySelector('hf-frame[targetname="participant"]');
+      if (!frameEl || !frameEl.$) return;
+      frameEl.load({ url: document.URL, type: 'json', document: {
+        display: participant.display || participant.id,
+        email: participant.email || null,
+        avatar: participant.avatar || null,
+        avatarUrl: participant.avatar ? basePath + participant.avatar : null
+      }});
+    }
+
+    function buildMessagesData(conversationId) {
+      let rsmf = document.body.rsmf;
+      let events = rsmf.getEvents(conversationId, RSMF_NONE);
+      let buildEvent = (event, includeChildren) => {
+        let participant = rsmf.getParticipantById(event.participant);
+        let data = {
+          id: event.id,
+          participant: event.participant,
+          participantName: participant?.display || event.participant || 'Unknown',
+          timestamp: event.timestamp || '',
+          body: event.body || '',
+          attachments: (event.attachments || []).map(att => ({
+            id: att.id, display: att.display, url: basePath + att.id,
+            isImage: /\.(jpg|jpeg|gif|png)$/i.test(att.display)
+          }))
+        };
+        if (includeChildren) {
+          data.children = rsmf.getEvents(RSMF_ALL, event.id).map(child => buildEvent(child, false));
+        }
+        return data;
+      };
+      return { messages: events.map(event => buildEvent(event, true)) };
+    }
   </script>
 </head>
 <body>
@@ -38,8 +79,20 @@
 
 <nav>
   <form data-target="messages">
+  <script for>({
+    onsubmit(e) {
+      e.preventDefault();
+      let frameEl = document.querySelector(`hf-frame[targetname="${this.element.dataset.target}"]`);
+      if (!frameEl || !frameEl.$) return;
+      let conversationId = this.element.elements['conversationId']?.value || null;
+      let data = buildMessagesData(conversationId);
+      frameEl.load({ url: document.URL, type: 'json', document: data });
+    }
+  })</script>
     <label>Filter by conversation:</label><br />
-    <select name="conversationId"></select>
+    <select name="conversationId">
+    <script for>({ onchange(e) { this.element.form.requestSubmit(); } })</script>
+    </select>
   </form>
 </nav>
 
@@ -50,22 +103,26 @@
         <div haz:each="messages">
           <div class="message">
             <a href="#" expr:data-participant="participant">@<span expr:_text="participantName"></span></a>
+            <script for>({ onclick(e) { e.preventDefault(); showParticipant(this.element.dataset.participant); } })</script>
             <span>&nbsp;&nbsp;</span>
             <time expr:_text="timestamp"></time>
             <div expr:_text="body"></div>
             <div haz:each="attachments">
               <img haz:if="isImage" class="attachment" expr:src="url" />
+              <script for>({ onclick() { let popup = document.getElementById('popup'); popup.querySelector('img').src = this.element.src; popup.showModal(); } })</script>
               <a haz:unless="isImage" expr:href="url" target="_blank" expr:_text="display"></a>
             </div>
           </div>
           <div class="thread" haz:each="children">
             <div class="message">
               <a href="#" expr:data-participant="participant">@<span expr:_text="participantName"></span></a>
+              <script for>({ onclick(e) { e.preventDefault(); showParticipant(this.element.dataset.participant); } })</script>
               <span>&nbsp;&nbsp;</span>
               <time expr:_text="timestamp"></time>
               <div expr:_text="body"></div>
               <div haz:each="attachments">
                 <img haz:if="isImage" class="attachment" expr:src="url" />
+                <script for>({ onclick() { let popup = document.getElementById('popup'); popup.querySelector('img').src = this.element.src; popup.showModal(); } })</script>
                 <a haz:unless="isImage" expr:href="url" target="_blank" expr:_text="display"></a>
               </div>
             </div>
@@ -86,12 +143,14 @@
         <h2 expr:_text="display"></h2>
         <h3 haz:if="email" expr:_text="email"></h3>
         <img haz:if="avatar" class="avatar" expr:src="avatarUrl" />
+        <script for>({ onclick() { let popup = document.getElementById('popup'); popup.querySelector('img').src = this.element.src; popup.showModal(); } })</script>
       </hf-transform>
     </hf-body>
   </hf-frame>
 </aside>
 
 <dialog id="popup">
+<script for>({ onclick() { this.element.close(); } })</script>
   <img src="" />
 </dialog>
 
@@ -101,10 +160,12 @@
 import './js/vendor/HyperFrameset/HyperFrameset.mjs';
 import RsmfAdapter from './js/rsmfadapter.mjs';
 
-// Load manifest and initialize
 let url = basePath + 'rsmf_manifest.json';
 let manifest = await fetch(url).then(r => r.json());
 let rsmf = new RsmfAdapter(manifest);
+
+// Attach rsmf to body so behaviors can access it
+document.body.rsmf = rsmf;
 
 // Populate conversation select
 let select = document.querySelector('select[name="conversationId"]');
@@ -119,90 +180,9 @@ rsmf.getConversations().forEach(conv => {
   select.appendChild(option);
 });
 
-// Start HyperFrameset and wait until ready
 await Meeko.framer.start();
 
-// Intercept form submissions
-document.addEventListener('submit', (e) => {
-  e.preventDefault();
-  let form = e.target;
-  let targetName = form.getAttribute('data-target');
-  if (!targetName) return;
-
-  let frameEl = document.querySelector(`hf-frame[targetname="${targetName}"]`);
-  if (!frameEl || !frameEl.$) return;
-
-  let conversationId = form.elements['conversationId']?.value || null;
-  let data = buildMessagesData(conversationId, rsmf);
-  frameEl.load({ url: document.URL, type: 'json', document: data });
-});
-
-// Handle image popup
-document.addEventListener('click', (e) => {
-  let img = e.target.closest('img.attachment, img.avatar');
-  if (!img) return;
-  let popup = document.getElementById('popup');
-  popup.querySelector('img').src = img.src;
-  popup.showModal();
-  popup.onclick = () => popup.close();
-});
-
-// Handle participant clicks
-document.addEventListener('click', (e) => {
-  let link = e.target.closest('[data-participant]');
-  if (!link) return;
-  e.preventDefault();
-  let participantId = link.dataset.participant;
-  let participant = rsmf.getParticipantById(participantId);
-  if (!participant) return;
-
-  let frameEl = document.querySelector('hf-frame[targetname="participant"]');
-  if (!frameEl || !frameEl.$) return;
-
-  let data = {
-    display: participant.display || participant.id,
-    email: participant.email || null,
-    avatar: participant.avatar || null,
-    avatarUrl: participant.avatar ? basePath + participant.avatar : null
-  };
-  frameEl.load({ url: document.URL, type: 'json', document: data });
-});
-
-// Auto-submit on select change
-select.addEventListener('change', (e) => {
-  e.target.form.requestSubmit();
-});
-
-// Load all messages on page load once frame is ready
+// Load all messages on page load
 select.form.requestSubmit();
-
-function buildMessagesData(conversationId, rsmf) {
-  let events = rsmf.getEvents(conversationId, RsmfAdapter.NONE);
-  return {
-    messages: events.map(event => buildEventData(event, rsmf, true))
-  };
-}
-
-function buildEventData(event, rsmf, includeChildren) {
-  let participant = rsmf.getParticipantById(event.participant);
-  let data = {
-    id: event.id,
-    participant: event.participant,
-    participantName: participant?.display || event.participant || 'Unknown',
-    timestamp: event.timestamp || '',
-    body: event.body || '',
-    attachments: (event.attachments || []).map(att => ({
-      id: att.id,
-      display: att.display,
-      url: basePath + att.id,
-      isImage: /\.(jpg|jpeg|gif|png)$/i.test(att.display)
-    }))
-  };
-  if (includeChildren) {
-    let children = rsmf.getEvents(null, event.id);
-    data.children = children.map(child => buildEventData(child, rsmf, false));
-  }
-  return data;
-}
 </script>
 </html>
