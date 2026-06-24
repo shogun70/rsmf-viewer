@@ -127,24 +127,28 @@ TODO Future enhancements:
     }
 
     async function buildMessagesData(conversationId) {
+      // console.time('getEvents');
       let events = await rsmf.getEvents(conversationId, rsmf.NONE);
-      let data = await Promise.all(events.map(event => buildEventData(event)));
+      // console.timeEnd('getEvents');
+      // console.time('buildEventData');
+      let data = events.map(event => buildEventData(event));
+      // console.timeEnd('buildEventData');
       return { events: data };
     }
 
     async function buildRepliesData(parentId) {
       let events = await rsmf.getEvents(rsmf.ALL, parentId);
-      let data = await Promise.all(events.map(event => buildEventData(event)));
-      return { events: data };
+      return { events: events.map(event => buildEventData(event)) };
     }
 
-    async function buildEventData(event) {
-      let participant = await rsmf.getParticipantById(event.participant);
-      let replyCount = await rsmf.getReplyCount(event.id);
+    // NOTE uses event._participantDisplay (denormalized at import time)
+    // which eliminates the need for a separate participants lookup.
+    function buildEventData(event) {
+      let replyCount = event._replyCount || 0;
       return {
         id: event.id,
         participant: event.participant,
-        participantName: participant?.display || event.participant || 'Unknown',
+        participantName: event._participantDisplay,
         timestamp: event.timestamp || '',
         body: withEmoji(event.body || '', emojisTable),
         deleted: !!event.deleted,
@@ -185,8 +189,10 @@ TODO Future enhancements:
       let frameEl = document.querySelector(`hf-frame[targetname="${this.element.dataset.target}"]`);
       if (!frameEl || !frameEl.$) return;
       let conversationId = this.element.elements['conversationId']?.value || null;
-      buildMessagesData(conversationId).then(data => {
-        frameEl.load({ url: document.URL, type: 'json', document: data });
+      buildMessagesData(conversationId).then(async data => {
+        // console.time('render messages');
+        await frameEl.load({ url: document.URL, type: 'json', document: data });
+        // console.timeEnd('render messages');
       });
       let infoFrame = document.querySelector('hf-frame[targetname="conversation-info"]');
       if (infoFrame && infoFrame.$) {
@@ -387,7 +393,9 @@ import RsmfAdapter from './js/rsmfadapter.mjs';
 
 let url = basePath + 'rsmf_manifest.json';
 let manifest = await fetch(url).then(r => r.json());
+// console.time('RsmfAdapter.create');
 globalThis.rsmf = await RsmfAdapter.create(manifest, 'rsmf:' + basePath);
+// console.timeEnd('RsmfAdapter.create');
 globalThis.emojisTable = await emojisReady;
 
 await Meeko.framer.start();

@@ -127,11 +127,11 @@ class RsmfAdapter
             // TODO if event.participant is not in participantIds, create a virtual participant
             if (convId !== RsmfAdapter.NONE && !convIds.has(convId)) {
                 console.warn("Found event with non-existent conversation ID", convId);
-                conversations.push({ virtual: true, id: convId });
+                conversations.push({ _virtual: true, id: convId });
                 convIds.add(convId);
             }
             if (convId === RsmfAdapter.NONE && !convIds.has(RsmfAdapter.NONE)) {
-                conversations.push({ virtual: true, id: RsmfAdapter.NONE, display: RsmfAdapter.NONE_DISPLAY });
+                conversations.push({ _virtual: true, id: RsmfAdapter.NONE, display: RsmfAdapter.NONE_DISPLAY });
                 convIds.add(RsmfAdapter.NONE);
             }
         }
@@ -160,6 +160,20 @@ class RsmfAdapter
                         `This event:${event.id} is in conversation:${eventConv} but parent event:${parentId} is in conversation:${parentConv}`);
                 }
             }
+        }
+
+        // Pre-compute reply counts so they're available as a field, not a query
+        let replyCounts = {};
+        for (let event of sorted) {
+          if (event.parent) replyCounts[event.parent] = (replyCounts[event.parent] || 0) + 1;
+        }
+        // NOTE _participantDisplay denormalizes the participant name onto each event,
+        // saving a separate participants lookup at render time.
+        let pMap = new Map(participants.map(p => [p.id, p]));
+        for (let event of sorted) {
+          event._replyCount = replyCounts[event.id] || 0;
+          let p = pMap.get(event.participant);
+          event._participantDisplay = p?.display || event.participant || 'Unknown';
         }
 
         await db.conversations.bulkAdd(conversations);

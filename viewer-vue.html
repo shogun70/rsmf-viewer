@@ -268,9 +268,9 @@
       template: document.getElementById('message-tree'),
       props: ['message'],
       setup(props) {
-        const participant = shallowRef(null);
+        // NOTE uses event._participantDisplay (denormalized at import time)
+        const participant = shallowRef({ id: props.message.participant, display: props.message._participantDisplay });
         const children = shallowRef([]);
-        rsmf.getParticipantById(props.message.participant).then(p => { participant.value = p || { id: props.message.participant }; });
         rsmf.getEvents(null, props.message.id).then(c => { children.value = c; });
         return {
           message: props.message,
