@@ -61,6 +61,7 @@ This software is released with MIT license.
 It also utilizes other software under different licenses:
 
 - HyperFrameset (includes behaviors): https://github.com/meekostuff/HyperFrameset/blob/main/LICENSE.txt (MPL-2.0)
+- Dexie.js: https://github.com/dexie/Dexie.js/blob/master/LICENSE (Apache-2.0)
 - Vue.js: https://github.com/vuejs/core/blob/main/LICENSE (MIT)
 - Ndesmic Zip.js: https://github.com/ndesmic/zip/blob/main/license (MIT)
 - PostalSys postal-mime.js: https://github.com/postalsys/postal-mime/blob/master/LICENSE.txt (MIT)

@@ -251,7 +251,10 @@ async function saveFile(entry) {
 
 window.onFilePicker = onFilePicker;
 window.addEventListener('beforeunload', async (ev) => {
-  await self.caches.delete(DATA_PATH);
+  await Promise.all([
+    self.caches.delete(DATA_PATH),
+    indexedDB.deleteDatabase('rsmf:' + DATA_PATH)
+  ]);
 });
 </script>
 </html>

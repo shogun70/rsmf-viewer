@@ -104,15 +104,15 @@
   <form id="options" @change="(e) => { e.currentTarget.requestSubmit(); }" @submit.prevent="(e) => { conversationId = e.target.elements['conversationId'].value; }">
 
   <label>Filter by conversation:</label><br />
-  <select name="conversationId" :size="rsmf.getConversations().length + 1">
+  <select name="conversationId" :size="conversations.length + 1">
     <option value="null">ALL</option>
-    <option v-for="conversation of rsmf.getConversations()" :value="conversation.id || ` ${RsmfAdapter.NONE} `" v-text="conversation.display || conversation.id"></option>
+    <option v-for="conversation of conversations" :value="conversation.id || ` ${RsmfAdapter.NONE} `" v-text="conversation.display || conversation.id"></option>
   </select>
   </form>
 </nav>
 
 <div class="column" id="messages">
-  <div v-for="message of rsmf.getEvents(conversationId, '')" v-if="conversationId">
+  <div v-for="message of messages">
     <message-tree :message="message" :key="message.id"></message-tree>
   </div>
 </div>
@@ -127,7 +127,7 @@
 
 <template id="message-tree">
   <div class="message">
-    <a href="javascript:void(0)">@<span v-text="participant.display || participant.id" @click="participantId = message.participant"></span></a>
+    <a href="javascript:void(0)">@<span v-text="participant?.display || participant?.id || ''" @click="participantId = message.participant"></span></a>
     <span>&nbsp;&nbsp;</span>
     <time v-if="message.timestamp" v-text="message.timestamp"></time>
     <div v-html="withEmoji(message.body)"></div>
@@ -143,8 +143,8 @@
       </span>
     </div>
   </div>
-  <div class="thread" v-for="message of rsmf.getEvents(null, message.id)">
-    <message-tree :message="message" :key="message.id"></message-tree>
+  <div class="thread" v-for="child of children">
+    <message-tree :message="child" :key="child.id"></message-tree>
   </div>
 </template>
 
@@ -155,7 +155,7 @@
 </body>
 
 <script type="module">
-  import { createApp, onMounted, ref, computed } from 'vue'
+  import { createApp, onMounted, ref, computed, watch, shallowRef } from 'vue'
   import RsmfAdapter from './js/rsmfadapter.mjs'
 
   function showImage(src) {
@@ -206,21 +206,38 @@
   }
 
   let url = basePath + 'rsmf_manifest.json';
-  fetch(url, { mode: 'cors' })
-    .then(response => response.json())
-    .then(json => new RsmfAdapter(json))
-    .then(rsmf => initialise(rsmf));
+  let manifest = await fetch(url, { mode: 'cors' }).then(r => r.json());
+  let rsmf = await RsmfAdapter.create(manifest, 'rsmf:' + basePath);
+  initialise(rsmf);
 
   function initialise(rsmf) {
     var conversationId = ref();
     var participantId = ref();
+    var conversations = shallowRef([]);
+    var messages = shallowRef([]);
+    var participant = shallowRef(null);
+
+    rsmf.getConversations().then(c => { conversations.value = c; });
+
+    watch(conversationId, async (val) => {
+      let id = val === 'null' ? null : val;
+      messages.value = await rsmf.getEvents(id, '');
+    });
+
+    watch(participantId, async (id) => {
+      if (id) {
+        participant.value = await rsmf.getParticipantById(id);
+      } else {
+        participant.value = null;
+      }
+    });
 
     createApp({
       setup() {
         return {
           conversationId,
+          conversations,
           RsmfAdapter,
-          rsmf,
           showImage,
           emojiLookup,
           withEmoji,
@@ -238,6 +255,7 @@
         });
         return {
           conversationId,
+          messages,
           RsmfAdapter,
           rsmf,
           showImage,
@@ -250,10 +268,14 @@
       template: document.getElementById('message-tree'),
       props: ['message'],
       setup(props) {
-        const participant = computed(() => rsmf.getParticipantById(props.message.participant));
+        const participant = shallowRef(null);
+        const children = shallowRef([]);
+        rsmf.getParticipantById(props.message.participant).then(p => { participant.value = p || { id: props.message.participant }; });
+        rsmf.getEvents(null, props.message.id).then(c => { children.value = c; });
         return {
           message: props.message,
           participant,
+          children,
           participantId,
           RsmfAdapter,
           rsmf,
@@ -268,7 +290,6 @@
 
     createApp({
       setup() {
-        const participant = computed(() => rsmf.getParticipantById(participantId.value));
         return {
           participant,
           RsmfAdapter,

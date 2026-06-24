@@ -109,35 +109,38 @@ TODO Future enhancements:
     }
 
     function showParticipant(id) {
-      let p = rsmf.getParticipantById(id);
-      if (!p) return;
-      let frameEl = document.querySelector('hf-frame[targetname="participant"]');
-      if (!frameEl || !frameEl.$) return;
-      frameEl.load({ url: document.URL, type: 'json', document: {
-        id: p.id,
-        display: p.display || p.id,
-        initials: getInitials(p.display || p.id),
-        email: p.email || null,
-        emailHref: p.email ? 'mailto:' + p.email : null,
-        avatar: p.avatar || null,
-        avatarUrl: p.avatar ? basePath + p.avatar : null,
-        custom: p.custom || []
-      }});
+      rsmf.getParticipantById(id).then(p => {
+        if (!p) return;
+        let frameEl = document.querySelector('hf-frame[targetname="participant"]');
+        if (!frameEl || !frameEl.$) return;
+        frameEl.load({ url: document.URL, type: 'json', document: {
+          id: p.id,
+          display: p.display || p.id,
+          initials: getInitials(p.display || p.id),
+          email: p.email || null,
+          emailHref: p.email ? 'mailto:' + p.email : null,
+          avatar: p.avatar || null,
+          avatarUrl: p.avatar ? basePath + p.avatar : null,
+          custom: p.custom || []
+        }});
+      });
     }
 
-    function buildMessagesData(conversationId) {
-      let events = rsmf.getEvents(conversationId, rsmf.NONE);
-      return { events: events.map(event => buildEventData(event)) };
+    async function buildMessagesData(conversationId) {
+      let events = await rsmf.getEvents(conversationId, rsmf.NONE);
+      let data = await Promise.all(events.map(event => buildEventData(event)));
+      return { events: data };
     }
 
-    function buildRepliesData(parentId) {
-      let events = rsmf.getEvents(rsmf.ALL, parentId);
-      return { events: events.map(event => buildEventData(event)) };
+    async function buildRepliesData(parentId) {
+      let events = await rsmf.getEvents(rsmf.ALL, parentId);
+      let data = await Promise.all(events.map(event => buildEventData(event)));
+      return { events: data };
     }
 
-    function buildEventData(event) {
-      let participant = rsmf.getParticipantById(event.participant);
-      let replyCount = rsmf.getEvents(rsmf.ALL, event.id).length;
+    async function buildEventData(event) {
+      let participant = await rsmf.getParticipantById(event.participant);
+      let replyCount = await rsmf.getReplyCount(event.id);
       return {
         id: event.id,
         participant: event.participant,
@@ -149,7 +152,7 @@ TODO Future enhancements:
         hasEdits: (event.edits || []).length > 0,
         edits: (event.edits || []).map(edit => ({
           timestamp: edit.timestamp || '',
-          participantName: rsmf.getParticipantById(edit.participant)?.display || edit.participant || 'Unknown',
+          participantName: edit.participant || 'Unknown',
           previous: edit.previous || '',
           new: edit.new || ''
         })),
@@ -182,23 +185,26 @@ TODO Future enhancements:
       let frameEl = document.querySelector(`hf-frame[targetname="${this.element.dataset.target}"]`);
       if (!frameEl || !frameEl.$) return;
       let conversationId = this.element.elements['conversationId']?.value || null;
-      let data = buildMessagesData(conversationId);
-      frameEl.load({ url: document.URL, type: 'json', document: data });
+      buildMessagesData(conversationId).then(data => {
+        frameEl.load({ url: document.URL, type: 'json', document: data });
+      });
       let infoFrame = document.querySelector('hf-frame[targetname="conversation-info"]');
       if (infoFrame && infoFrame.$) {
-        let conv = conversationId ? rsmf.getConversationById(conversationId) : null;
-        if (conv) {
-          infoFrame.load({ url: document.URL, type: 'json', document: {
-            id: conv.id,
-            display: conv.display || conv.id,
-            platform: conv.platform || '',
-            type: conv.type || '',
-            typeLabel: (conv.type || '?')[0].toUpperCase(),
-            icon: conv.icon || null,
-            iconUrl: conv.icon ? basePath + conv.icon : null,
-            participantCount: (conv.participants || []).length + ' members',
-            custom: conv.custom || []
-          }});
+        if (conversationId) {
+          rsmf.getConversationById(conversationId).then(conv => {
+            if (!conv) return;
+            infoFrame.load({ url: document.URL, type: 'json', document: {
+              id: conv.id,
+              display: conv.display || conv.id,
+              platform: conv.platform || '',
+              type: conv.type || '',
+              typeLabel: (conv.type || '?')[0].toUpperCase(),
+              icon: conv.icon || null,
+              iconUrl: conv.icon ? basePath + conv.icon : null,
+              participantCount: (conv.participants || []).length + ' members',
+              custom: conv.custom || []
+            }});
+          });
         } else {
           // TODO need a proper HyperFrameset solution for clearing a frame
           if (infoFrame.bodyElement) infoFrame.bodyElement.remove();
@@ -312,8 +318,9 @@ TODO Future enhancements:
                   let frame = this.element.querySelector('hf-frame');
                   if (frame.bodyElement) return;
                   let parentId = this.element.dataset.parent;
-                  let data = buildRepliesData(parentId);
-                  frame.load({ url: document.URL, type: 'json', document: data });
+                  buildRepliesData(parentId).then(data => {
+                    frame.load({ url: document.URL, type: 'json', document: data });
+                  });
                 }
               })</script>
                 <summary expr:_text="replyLabel"></summary>
@@ -380,16 +387,17 @@ import RsmfAdapter from './js/rsmfadapter.mjs';
 
 let url = basePath + 'rsmf_manifest.json';
 let manifest = await fetch(url).then(r => r.json());
-globalThis.rsmf = new RsmfAdapter(manifest);
+globalThis.rsmf = await RsmfAdapter.create(manifest, 'rsmf:' + basePath);
 globalThis.emojisTable = await emojisReady;
 
 await Meeko.framer.start();
 
 // Populate conversation select
 let convFrame = document.querySelector('hf-frame[targetname="conversations"]');
+let conversations = await rsmf.getConversations();
 
 convFrame.load({ url: document.URL, type: 'json', document: {
-  conversations: rsmf.getConversations().map(c => ({ id: c.id, display: c.display || c.id }))
+  conversations: conversations.map(c => ({ id: c.id, display: c.display || c.id }))
 }});
 
 // Load all messages on page load
