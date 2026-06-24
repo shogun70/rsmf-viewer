@@ -2,7 +2,8 @@ import { cpSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-// TODO also update: vuejs, ndesmic-zip, postal-mime
+// TODO also update: vuejs, ndesmic-zip, postal-mime, dexie
+// Dexie: curl -sL "https://unpkg.com/dexie@latest/dist/dexie.mjs" -o js/vendor/dexie/dexie.mjs
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const vendorDir = resolve(__dirname, 'js/vendor');

@@ -9,6 +9,7 @@
     "update-vendor": "node update-vendor.mjs"
   },
   "devDependencies": {
+    "fake-indexeddb": "^6.2.5",
     "serve": "14.2.4"
   },
   "license": "MIT"
