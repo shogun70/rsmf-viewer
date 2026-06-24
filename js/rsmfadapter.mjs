@@ -1,10 +1,20 @@
-import IndexedList from './indexedlist.mjs';
-
 /**
  * Adapter for navigating RSMF (Relativity Short Message Format) manifest data.
- * Indexes participants, conversations, and events from an rsmf_manifest.json
- * structure, providing lookup by ID and filtered retrieval.
+ * Uses Dexie (IndexedDB) for indexed storage and querying.
+ *
+ * TODO Validation improvements:
+ * - IDs should be trimmed to null (and logged as a warning):
+ *     *.id, event.conversation, event.participant, conversation.participants[]
+ * - event.participant not found in participants should create a virtual participant
+ *     (similar to how missing conversations are handled)
+ * - Duplicate IDs: currently stored but only first is returned by getXxxById();
+ *     consider exposing duplicates or surfacing them in a validation report
+ * - event.parent referencing a non-existent event: error is logged but the event
+ *     is still stored with that parent value (orphaned in queries by parent)
  */
+
+import Dexie from './vendor/dexie/dexie.mjs';
+
 class RsmfAdapter
 {
     /**
@@ -28,112 +38,134 @@ class RsmfAdapter
     NONE = RsmfAdapter.NONE;
     ALL = RsmfAdapter.ALL;
 
-    #manifest;
-    #participants; // IndexedList with index on id
-    #conversations; // IndexedList with indexes on id, platform, type
-    #events; // IndexedList with indexes on id, conversation, parent, participant
+    #db;
+
+    constructor(db) {
+        this.#db = db;
+    }
+
+    static #addError(item, message) {
+        if (!item.errors) item.errors = [];
+        item.errors.push(message);
+    }
 
     /**
-     * @param {Object} manifest - Parsed rsmf_manifest.json object containing
+     * Create and populate an RsmfAdapter from a manifest object.
+     * @param {Object} manifest - Parsed rsmf_manifest.json containing
      *   participants, conversations, and events arrays.
+     * @param {string} dbName - IndexedDB database name.
+     * @returns {Promise<RsmfAdapter>}
      */
-    constructor(manifest)
-    {
-        this.#manifest = manifest;
-        this.#participants = new IndexedList(null, ['id']);
-        this.#conversations = new IndexedList(null, ['id', 'platform', 'type']);
-        this.#events = new IndexedList(null, ['id', 'conversation', 'parent', 'participant']);
-
-        // Index participants by ID
-        this.#manifest['participants'].forEach(participant => {
-            var id = participant['id'];
-            if (typeof id === 'string') {
-                if (this.#participants.count('id', id)) {
-                    console.warn('Duplicate RSMF participant ID', id);
-                    RsmfAdapter.#addError(participant, `Duplicate participant:${id}`);
-                }
-                this.#participants.add(participant);
-            }
-            else console.warn('RSMF participant has invalid ID', id);
+    static async create(manifest, dbName) {
+        let db = new Dexie(dbName);
+        db.version(1).stores({
+            participants: '++, id',
+            conversations: '++, id, platform, type',
+            events: '++, id, conversation, parent, participant, timestamp, [conversation+parent]'
         });
 
-        // Index conversations by ID
-        this.#manifest['conversations'].forEach(conversation => {
-            var id = conversation['id'];
-            if (typeof id === 'string') {
-                if (this.#conversations.count('id', id)) {
-                    console.warn('Duplicate RSMF conversation ID', id);
-                    RsmfAdapter.#addError(conversation, `Duplicate conversation:${id}`);
-                }
-                this.#conversations.add(conversation);
+        // Clear any existing data (re-import)
+        await db.participants.clear();
+        await db.conversations.clear();
+        await db.events.clear();
+
+        // Index participants by ID, check for duplicates
+        let participants = [];
+        let participantIds = new Set();
+        for (let participant of (manifest.participants || [])) {
+            let id = participant.id;
+            if (typeof id !== 'string') {
+                console.warn('RSMF participant has invalid ID', id);
+                continue;
             }
-            else console.warn('RSMF conversation has invalid ID', id);
-        });
+            if (participantIds.has(id)) {
+                console.warn('Duplicate RSMF participant ID', id);
+                RsmfAdapter.#addError(participant, `Duplicate participant:${id}`);
+            }
+            participantIds.add(id);
+            participants.push(participant);
+        }
+        await db.participants.bulkAdd(participants);
+
+        // Index conversations by ID, adding virtual entries for orphans
+        let conversations = [];
+        let convIds = new Set();
+        for (let conversation of (manifest.conversations || [])) {
+            let id = conversation.id;
+            if (typeof id !== 'string') {
+                console.warn('RSMF conversation has invalid ID', id);
+                continue;
+            }
+            if (convIds.has(id)) {
+                console.warn('Duplicate RSMF conversation ID', id);
+                RsmfAdapter.#addError(conversation, `Duplicate conversation:${id}`);
+            }
+            convIds.add(id);
+            conversations.push(conversation);
+        }
 
         // Sort events by timestamp
-        let sorted = this.#manifest['events'].sort(RsmfAdapter.eventComparator);
+        let sorted = (manifest.events || []).sort(RsmfAdapter.eventComparator);
 
-        // Pass 1: Add events to IndexedList, validate conversation references
-        sorted.forEach(event => {
+        // Pass 1: Normalize and validate event fields
+        let eventIds = new Set();
+        for (let event of sorted) {
+            // Check for duplicate ID
             let id = RsmfAdapter.getStringOrNull(event, 'id');
-            let conversationId = RsmfAdapter.getStringOrNull(event, 'conversation');
-
-            // Validate conversation reference
-            if (conversationId !== null && !this.#conversations.count('id', conversationId)) {
-                console.warn("Found event with non-existent conversation ID", conversationId);
-                this.#conversations.add({ virtual: true, id: conversationId });
+            if (id !== null && eventIds.has(id)) {
+                console.warn('Duplicate RSMF event ID', id);
+                RsmfAdapter.#addError(event, `Duplicate event:${id}`);
             }
-            if (conversationId === null) {
-                if (!this.#conversations.count('id', RsmfAdapter.NONE)) {
-                    this.#conversations.add({
-                        virtual: true,
-                        id: RsmfAdapter.NONE,
-                        display: RsmfAdapter.NONE_DISPLAY,
-                    });
-                }
-            }
+            if (id !== null) eventIds.add(id);
 
             // Normalize indexed fields: use NONE for missing conversation/parent
             if (!event.hasOwnProperty('conversation')) event.conversation = RsmfAdapter.NONE;
             if (!event.hasOwnProperty('parent')) event.parent = RsmfAdapter.NONE;
 
-            // Check for duplicate ID
-            if (id !== null && this.#events.count('id', id)) {
-                console.warn('Duplicate RSMF event ID', id);
-                RsmfAdapter.#addError(event, `Duplicate event:${id}`);
+            // Validate conversation reference
+            let convId = event.conversation;
+            // TODO if event.participant is not in participantIds, create a virtual participant
+            if (convId !== RsmfAdapter.NONE && !convIds.has(convId)) {
+                console.warn("Found event with non-existent conversation ID", convId);
+                conversations.push({ virtual: true, id: convId });
+                convIds.add(convId);
             }
-
-            this.#events.add(event);
-        });
+            if (convId === RsmfAdapter.NONE && !convIds.has(RsmfAdapter.NONE)) {
+                conversations.push({ virtual: true, id: RsmfAdapter.NONE, display: RsmfAdapter.NONE_DISPLAY });
+                convIds.add(RsmfAdapter.NONE);
+            }
+        }
 
         // Pass 2: Validate parent relationships
-        sorted.forEach(event => {
+        for (let event of sorted) {
             let parentId = event.parent;
-            if (parentId === RsmfAdapter.NONE) return;
+            if (parentId === RsmfAdapter.NONE) continue;
 
-            if (!this.#events.count('id', parentId)) {
+            if (!eventIds.has(parentId)) {
                 RsmfAdapter.#addError(event, `Parent event:${parentId} not found`);
-                return;
+                continue;
             }
 
-            let parent = this.#events.entries('id', parentId)[0];
-            let parentConv = parent.conversation;
-            let eventConv = event.conversation;
+            let parent = sorted.find(e => e.id === parentId);
+            if (parent) {
+                let parentConv = parent.conversation;
+                let eventConv = event.conversation;
 
-            if (parentConv !== RsmfAdapter.NONE && eventConv === RsmfAdapter.NONE) {
-                RsmfAdapter.#addError(event,
-                    `This event:${event.id} has conversation:${RsmfAdapter.NONE_DISPLAY} but parent event:${parentId} is in conversation:${parentConv}`);
+                if (parentConv !== RsmfAdapter.NONE && eventConv === RsmfAdapter.NONE) {
+                    RsmfAdapter.#addError(event,
+                        `This event:${event.id} has conversation:${RsmfAdapter.NONE_DISPLAY} but parent event:${parentId} is in conversation:${parentConv}`);
+                }
+                else if (parentConv !== RsmfAdapter.NONE && eventConv !== RsmfAdapter.NONE && eventConv !== parentConv) {
+                    RsmfAdapter.#addError(event,
+                        `This event:${event.id} is in conversation:${eventConv} but parent event:${parentId} is in conversation:${parentConv}`);
+                }
             }
-            else if (parentConv !== RsmfAdapter.NONE && eventConv !== RsmfAdapter.NONE && eventConv !== parentConv) {
-                RsmfAdapter.#addError(event,
-                    `This event:${event.id} is in conversation:${eventConv} but parent event:${parentId} is in conversation:${parentConv}`);
-            }
-        });
-    }
+        }
 
-    static #addError(event, message) {
-        if (!event.errors) event.errors = [];
-        event.errors.push(message);
+        await db.conversations.bulkAdd(conversations);
+        await db.events.bulkAdd(sorted);
+
+        return new RsmfAdapter(db);
     }
 
     /**
@@ -147,61 +179,59 @@ class RsmfAdapter
         return typeof value === 'string' ? value : null;
     }
 
+    // Participants
+
     /**
-     * @returns {Object[]} All participants from the manifest.
+     * @returns {Promise<Object[]>} All participants.
      */
-    getParticipants()
-    {
-        return this.#participants.all();
+    async getParticipants() {
+        return this.#db.participants.toArray();
     }
 
     /**
      * @param {string} id - Participant ID.
-     * @returns {Object|undefined} The participant, or undefined if not found.
+     * @returns {Promise<Object|undefined>} The participant, or undefined if not found.
      */
-    getParticipantById(id)
-    {
-        let results = this.#participants.entries('id', id);
-        return results.length > 0 ? results[0] : undefined;
+    async getParticipantById(id) {
+        return this.#db.participants.where('id').equals(id).first();
     }
 
+    // Conversations
+
     /**
-     * @returns {Object[]} All conversations (including virtual ones created for orphan events).
+     * @returns {Promise<Object[]>} All conversations (including virtual ones created for orphan events).
      */
-    getConversations()
-    {
-        return this.#conversations.all();
+    async getConversations() {
+        return this.#db.conversations.toArray();
     }
 
     /**
      * @param {string} id - Conversation ID.
-     * @returns {Object|undefined} The conversation, or undefined if not found.
+     * @returns {Promise<Object|undefined>} The conversation, or undefined if not found.
      */
-    getConversationById(id)
-    {
-        let results = this.#conversations.entries('id', id);
-        return results.length > 0 ? results[0] : undefined;
+    async getConversationById(id) {
+        return this.#db.conversations.where('id').equals(id).first();
     }
 
     /**
      * Get conversations by platform.
      * @param {string} platform
-     * @returns {Object[]}
+     * @returns {Promise<Object[]>}
      */
-    getConversationsByPlatform(platform)
-    {
-        return this.#conversations.entries('platform', platform);
+    async getConversationsByPlatform(platform) {
+        return this.#db.conversations.where('platform').equals(platform).toArray();
     }
 
     /**
      * Get conversations by type.
      * @param {string} type
-     * @returns {Object[]}
+     * @returns {Promise<Object[]>}
      */
-    getConversationsByType(type)
-    {
-        return this.#conversations.entries('type', type);
+    async getConversationsByType(type) {
+        return this.#db.conversations.where('type').equals(type).toArray();
     }
+
+    // Events
 
     /**
      * Get events filtered by conversation and/or parent.
@@ -214,10 +244,9 @@ class RsmfAdapter
      *
      * @param {string|null} conversationId
      * @param {string|null} parentId
-     * @returns {Object[]}
+     * @returns {Promise<Object[]>}
      */
-    getEvents(conversationId, parentId)
-    {
+    async getEvents(conversationId, parentId) {
         if (parentId === RsmfAdapter.ALL) return this.getEventsByConversationId(conversationId);
         if (parentId === RsmfAdapter.NONE) return this.getRootEvents(conversationId);
         return this.getEventsByParentId(parentId);
@@ -225,56 +254,60 @@ class RsmfAdapter
 
     /**
      * @param {string} id - Event ID.
-     * @returns {Object|undefined} The event, or undefined if not found.
+     * @returns {Promise<Object|undefined>} The event, or undefined if not found.
      */
-    getEventById(id)
-    {
-        let results = this.#events.entries('id', id);
-        return results.length > 0 ? results[0] : undefined;
+    async getEventById(id) {
+        return this.#db.events.where('id').equals(id).first();
     }
 
     /**
      * Get all events in a conversation (regardless of parent), or all events if conversationId is null (ALL).
      * @param {string|null} conversationId
-     * @returns {Object[]}
+     * @returns {Promise<Object[]>}
      */
-    getEventsByConversationId(conversationId)
-    {
-        if (conversationId === RsmfAdapter.ALL) return this.#events.all();
-        return this.#events.entries('conversation', conversationId);
+    async getEventsByConversationId(conversationId) {
+        if (conversationId === RsmfAdapter.ALL) return this.#db.events.toArray();
+        return this.#db.events.where('conversation').equals(conversationId).toArray();
     }
 
     /**
      * Get top-level events (no parent) optionally filtered by conversation.
      * @param {string|null} conversationId - Specific conversation, '' for orphans, null for all.
-     * @returns {Object[]}
+     * @returns {Promise<Object[]>}
      */
-    getRootEvents(conversationId)
-    {
-        let roots = this.#events.entries('parent', RsmfAdapter.NONE);
-        if (conversationId === RsmfAdapter.ALL) return roots;
-        return roots.filter(event => event.conversation === conversationId);
+    async getRootEvents(conversationId) {
+        if (conversationId === RsmfAdapter.ALL) {
+            return this.#db.events.where('parent').equals(RsmfAdapter.NONE).toArray();
+        }
+        return this.#db.events.where('[conversation+parent]').equals([conversationId, RsmfAdapter.NONE]).toArray();
     }
 
     /**
      * Get child events of a specific parent, or all events if parentId is null (ALL).
      * @param {string|null} parentId
-     * @returns {Object[]}
+     * @returns {Promise<Object[]>}
      */
-    getEventsByParentId(parentId)
-    {
-        if (parentId === RsmfAdapter.ALL) return this.#events.all();
-        return this.#events.entries('parent', parentId);
+    async getEventsByParentId(parentId) {
+        if (parentId === RsmfAdapter.ALL) return this.#db.events.toArray();
+        return this.#db.events.where('parent').equals(parentId).toArray();
     }
 
     /**
      * Get events by participant.
      * @param {string} participantId
-     * @returns {Object[]}
+     * @returns {Promise<Object[]>}
      */
-    getEventsByParticipant(participantId)
-    {
-        return this.#events.entries('participant', participantId);
+    async getEventsByParticipant(participantId) {
+        return this.#db.events.where('participant').equals(participantId).toArray();
+    }
+
+    /**
+     * Get the count of direct replies to an event.
+     * @param {string} eventId
+     * @returns {Promise<number>}
+     */
+    async getReplyCount(eventId) {
+        return this.#db.events.where('parent').equals(eventId).count();
     }
 
     /**
@@ -284,12 +317,11 @@ class RsmfAdapter
      * @returns {number}
      */
     static eventComparator = (evt1, evt2) => {
-        const tsProp = 'timestamp';
-        let t1 = RsmfAdapter.parseTimestamp(evt1[tsProp]);
-        let t2 = RsmfAdapter.parseTimestamp(evt2[tsProp]);
+        let t1 = RsmfAdapter.parseTimestamp(evt1.timestamp);
+        let t2 = RsmfAdapter.parseTimestamp(evt2.timestamp);
         return isNaN(t1) && isNaN(t2) ? 0 :
+                 isNaN(t1) ? 1 :
                  isNaN(t2) ? -1 :
-                 isNaN(t2) ? 1 :
                  t1 - t2;
     };
 
@@ -298,8 +330,7 @@ class RsmfAdapter
      * @param {string} timestamp
      * @returns {number} Milliseconds since epoch, or NaN if unparseable.
      */
-    static parseTimestamp(timestamp)
-    {
+    static parseTimestamp(timestamp) {
         return Date.parse(timestamp);
     }
 }
