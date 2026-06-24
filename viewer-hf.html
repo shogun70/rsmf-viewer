@@ -19,6 +19,13 @@
     .disclaimer { font-style: italic; color: #666; border-left: 2px solid #aaa; padding-left: 0.5em; }
     .deleted { background: #fff0f0; border-left: 3px solid #e55; padding-left: 0.5em; }
     .deleted header::after { content: 'DELETED'; background: #e55; color: white; font-size: 0.7em; padding: 0.1em 0.4em; border-radius: 3px; vertical-align: middle; margin-left: 0.5em; }
+    .edits summary { font-size: 0.8em; color: #888; cursor: pointer; }
+    .edit { margin: 0.25em 0; font-size: 0.85em; }
+    .edit-values { display: grid; }
+    .edit-new, .edit-previous { grid-area: 1 / 1; }
+    .edit-previous { visibility: hidden; color: #999; font-style: italic; }
+    .edit:hover .edit-new { visibility: hidden; }
+    .edit:hover .edit-previous { visibility: visible; }
     .thread { margin-left: 2em; }
     time { color: gray; font-size: small; }
     img.attachment { max-width: 10vw; max-height: 20vh; border: 2px solid gray; }
@@ -105,6 +112,13 @@
           body: withEmoji(event.body || '', emojisTable),
           deleted: !!event.deleted,
           messageClass: (event.type || 'message') + (event.deleted ? ' deleted' : ''),
+          hasEdits: (event.edits || []).length > 0,
+          edits: (event.edits || []).map(edit => ({
+            timestamp: edit.timestamp || '',
+            participantName: rsmf.getParticipantById(edit.participant)?.display || edit.participant || 'Unknown',
+            previous: edit.previous || '',
+            new: edit.new || ''
+          })),
           attachments: (event.attachments || []).map(att => ({
             id: att.id, display: att.display, url: basePath + att.id,
             isImage: /\.(jpg|jpeg|gif|png)$/i.test(att.display)
@@ -167,6 +181,20 @@
               <time expr:_text="timestamp"></time>
             </header>
             <p expr:_html="body"></p>
+            <haz:if test="hasEdits">
+              <details class="edits">
+                <summary>Edited</summary>
+                <haz:each select="edits">
+                  <div class="edit">
+                    <time expr:_text="timestamp"></time> by @<span expr:_text="participantName"></span>
+                    <div class="edit-values">
+                      <span class="edit-new" expr:_text="new"></span>
+                      <span class="edit-previous" expr:_text="previous"></span>
+                    </div>
+                  </div>
+                </haz:each>
+              </details>
+            </haz:if>
             <haz:each select="attachments">
               <figure>
                 <haz:if test="isImage">
