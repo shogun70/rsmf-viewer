@@ -26,6 +26,11 @@
     .edit-previous { visibility: hidden; color: #999; font-style: italic; }
     .edit:hover .edit-new { visibility: hidden; }
     .edit:hover .edit-previous { visibility: visible; }
+    .timestamp-wrapper { position: relative; }
+    .custom-tooltip { display: none; position: absolute; top: 1.5em; left: 0; z-index: 10; background: #333; color: #fff; font-size: 0.8em; padding: 0.5em; border-radius: 4px; white-space: nowrap; margin: 0; }
+    .custom-tooltip dt { font-weight: bold; }
+    .custom-tooltip dd { margin: 0 0 0.25em 0.5em; }
+    .timestamp-wrapper:hover .custom-tooltip { display: grid; grid-template-columns: auto 1fr; gap: 0.1em 0.5em; }
     .thread { margin-left: 2em; }
     time { color: gray; font-size: small; }
     img.attachment { max-width: 10vw; max-height: 20vh; border: 2px solid gray; }
@@ -119,6 +124,8 @@
             previous: edit.previous || '',
             new: edit.new || ''
           })),
+          hasCustom: (event.custom || []).length > 0,
+          custom: event.custom || [],
           attachments: (event.attachments || []).map(att => ({
             id: att.id, display: att.display, url: basePath + att.id,
             isImage: /\.(jpg|jpeg|gif|png)$/i.test(att.display)
@@ -178,7 +185,17 @@
               <a href="#" expr:data-participant="participant">@<span expr:_text="participantName"></span></a>
               <script for>({ onclick(e) { e.preventDefault(); showParticipant(this.element.dataset.participant); } })</script>
               <span>&nbsp;&nbsp;</span>
-              <time expr:_text="timestamp"></time>
+              <span class="timestamp-wrapper">
+                <time expr:_text="timestamp"></time>
+                <haz:if test="hasCustom">
+                  <dl class="custom-tooltip">
+                    <haz:each select="custom">
+                      <dt expr:_text="name"></dt>
+                      <dd expr:_text="value"></dd>
+                    </haz:each>
+                  </dl>
+                </haz:if>
+              </span>
             </header>
             <p expr:_html="body"></p>
             <haz:if test="hasEdits">
