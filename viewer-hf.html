@@ -13,8 +13,8 @@
     aside { width: 25%; background-color: mintcream; padding: 1em; box-sizing: border-box; overflow-y: auto; }
     hf-frame { display: block; }
     figure { margin: 0; }
-    .message, .join, .leave, .disclaimer { margin-bottom: 1em; padding-bottom: 0.75em; position: relative; }
-    .message::after, .join::after, .leave::after, .disclaimer::after { content: ''; position: absolute; bottom: 0; left: 25%; width: 50%; border-bottom: 1px solid #ccc; }
+    .event { margin-bottom: 1em; padding-bottom: 0.75em; position: relative; }
+    .event::after { content: ''; position: absolute; bottom: 0; left: 25%; width: 50%; border-bottom: 1px solid #ccc; }
     .join, .leave { font-style: italic; color: #888; }
     .disclaimer { font-style: italic; color: #666; border-left: 2px solid #aaa; padding-left: 0.5em; }
     .deleted { background: #fff0f0; border-left: 3px solid #e55; padding-left: 0.5em; }
@@ -40,6 +40,8 @@
     .custom-tooltip dd { margin: 0 0 0.25em 0.5em; }
     .timestamp-wrapper:hover .custom-tooltip { display: grid; grid-template-columns: auto 1fr; gap: 0.1em 0.5em; }
     .thread { margin-left: 2em; }
+    .thread summary { font-weight: bold; color: #1a6; cursor: pointer; }
+    .thread summary:hover { text-decoration: underline; }
     time { color: gray; font-size: small; }
     img.attachment { max-width: 10vw; max-height: 20vh; border: 2px solid gray; }
     img.attachment { cursor: pointer; }
@@ -115,36 +117,43 @@
 
     function buildMessagesData(conversationId) {
       let events = rsmf.getEvents(conversationId, rsmf.NONE);
-      let buildEvent = (event, includeChildren) => {
-        let participant = rsmf.getParticipantById(event.participant);
-        let data = {
-          id: event.id,
-          participant: event.participant,
-          participantName: participant?.display || event.participant || 'Unknown',
-          timestamp: event.timestamp || '',
-          body: withEmoji(event.body || '', emojisTable),
-          deleted: !!event.deleted,
-          messageClass: (event.type || 'message') + (event.deleted ? ' deleted' : ''),
-          hasEdits: (event.edits || []).length > 0,
-          edits: (event.edits || []).map(edit => ({
-            timestamp: edit.timestamp || '',
-            participantName: rsmf.getParticipantById(edit.participant)?.display || edit.participant || 'Unknown',
-            previous: edit.previous || '',
-            new: edit.new || ''
-          })),
-          hasCustom: (event.custom || []).length > 0,
-          custom: event.custom || [],
-          attachments: (event.attachments || []).map(att => ({
-            id: att.id, display: att.display, url: basePath + att.id,
-            isImage: /\.(jpg|jpeg|gif|png)$/i.test(att.display)
-          }))
-        };
-        if (includeChildren) {
-          data.children = rsmf.getEvents(rsmf.ALL, event.id).map(child => buildEvent(child, false));
-        }
-        return data;
+      return { events: events.map(event => buildEventData(event)) };
+    }
+
+    function buildRepliesData(parentId) {
+      let events = rsmf.getEvents(rsmf.ALL, parentId);
+      return { events: events.map(event => buildEventData(event)) };
+    }
+
+    function buildEventData(event) {
+      let participant = rsmf.getParticipantById(event.participant);
+      let replyCount = rsmf.getEvents(rsmf.ALL, event.id).length;
+      return {
+        id: event.id,
+        participant: event.participant,
+        participantName: participant?.display || event.participant || 'Unknown',
+        timestamp: event.timestamp || '',
+        body: withEmoji(event.body || '', emojisTable),
+        deleted: !!event.deleted,
+        messageClass: (event.type || 'message') + (event.deleted ? ' deleted' : ''),
+        hasEdits: (event.edits || []).length > 0,
+        edits: (event.edits || []).map(edit => ({
+          timestamp: edit.timestamp || '',
+          participantName: rsmf.getParticipantById(edit.participant)?.display || edit.participant || 'Unknown',
+          previous: edit.previous || '',
+          new: edit.new || ''
+        })),
+        hasCustom: (event.custom || []).length > 0,
+        custom: event.custom || [],
+        // TODO hasReplies is a workaround: Hazard boolean cast treats 0 as truthy (bug in Hazard/JSONDecoder)
+        hasReplies: replyCount > 0,
+        replyCount: replyCount,
+        replyLabel: replyCount + (replyCount === 1 ? ' reply' : ' replies'),
+        attachments: (event.attachments || []).map(att => ({
+          id: att.id, display: att.display, url: basePath + att.id,
+          isImage: /\.(jpg|jpeg|gif|png)$/i.test(att.display)
+        }))
       };
-      return { messages: events.map(event => buildEvent(event, true)) };
     }
   </script>
 </head>
@@ -235,11 +244,12 @@
 </nav>
 
 <main>
-  <hf-frame targetname="messages">
+  <hf-frame targetname="messages" defid="events">
     <hf-body condition="loaded">
       <hf-transform type="hazard" format="json">
         <section role="feed">
         <haz:template name="message">
+          <div class="event">
           <article expr:class="messageClass">
             <header>
               <a href="#" expr:data-participant="participant">@<span expr:_text="participantName"></span></a>
@@ -284,14 +294,26 @@
               </figure>
             </haz:each>
           </article>
+            <haz:if test="hasReplies">
+              <details class="thread" expr:data-parent="id">
+              <script for>({
+                ontoggle() {
+                  if (!this.element.open) return;
+                  let frame = this.element.querySelector('hf-frame');
+                  if (frame.bodyElement) return;
+                  let parentId = this.element.dataset.parent;
+                  let data = buildRepliesData(parentId);
+                  frame.load({ url: document.URL, type: 'json', document: data });
+                }
+              })</script>
+                <summary expr:_text="replyLabel"></summary>
+                <hf-frame def="events"></hf-frame>
+              </details>
+            </haz:if>
+          </div>
         </haz:template>
-        <haz:each select="messages">
+        <haz:each select="events">
           <haz:call name="message"></haz:call>
-          <haz:each select="children">
-            <div role="group" class="thread">
-              <haz:call name="message"></haz:call>
-            </div>
-          </haz:each>
         </haz:each>
         </section>
       </hf-transform>
