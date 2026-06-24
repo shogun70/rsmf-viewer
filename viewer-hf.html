@@ -27,6 +27,14 @@
     .edit:hover .edit-new { visibility: hidden; }
     .edit:hover .edit-previous { visibility: visible; }
     .timestamp-wrapper { position: relative; }
+    .conversation-info { background: white; border-radius: 6px; padding: 0.75em; margin-top: 1em; box-shadow: 0 1px 3px rgba(0,0,0,0.15); text-align: center; }
+    .conversation-info h3 { margin: 0.5em 0 0.25em; }
+    .conversation-info dl { text-align: left; display: grid; grid-template-columns: auto 1fr; gap: 0.25em 0.5em; margin: 0.5em 0 0; font-size: 0.85em; }
+    .conversation-info dt { font-weight: bold; }
+    .conversation-info dd { margin: 0; }
+    .conv-icon { margin: 0; display: flex; justify-content: center; }
+    .conv-icon img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; }
+    .conv-icon-fallback { width: 48px; height: 48px; border-radius: 6px; background: #4a7c59; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.5em; font-weight: bold; }
     .custom-tooltip { display: none; position: absolute; top: 1.5em; left: 0; z-index: 10; background: #333; color: #fff; font-size: 0.8em; padding: 0.5em; border-radius: 4px; white-space: nowrap; margin: 0; }
     .custom-tooltip dt { font-weight: bold; }
     .custom-tooltip dd { margin: 0 0 0.25em 0.5em; }
@@ -157,6 +165,27 @@
       let conversationId = this.element.elements['conversationId']?.value || null;
       let data = buildMessagesData(conversationId);
       frameEl.load({ url: document.URL, type: 'json', document: data });
+      let infoFrame = document.querySelector('hf-frame[targetname="conversation-info"]');
+      if (infoFrame && infoFrame.$) {
+        let conv = conversationId ? rsmf.getConversationById(conversationId) : null;
+        if (conv) {
+          infoFrame.load({ url: document.URL, type: 'json', document: {
+            id: conv.id,
+            display: conv.display || conv.id,
+            platform: conv.platform || '',
+            type: conv.type || '',
+            typeLabel: (conv.type || '?')[0].toUpperCase(),
+            icon: conv.icon || null,
+            iconUrl: conv.icon ? basePath + conv.icon : null,
+            participantCount: (conv.participants || []).length + ' members',
+            custom: conv.custom || []
+          }});
+        } else {
+          // TODO need a proper HyperFrameset solution for clearing a frame
+          if (infoFrame.bodyElement) infoFrame.bodyElement.remove();
+          infoFrame.bodyElement = null;
+        }
+      }
     }
   })</script>
     <label>Filter by conversation:</label><br />
@@ -172,6 +201,37 @@
       </hf-body>
     </hf-frame>
   </form>
+  <hf-frame targetname="conversation-info">
+    <hf-body condition="loaded">
+      <hf-transform type="hazard" format="json">
+        <article class="conversation-info">
+          <figure class="conv-icon">
+            <haz:if test="icon">
+              <img expr:src="iconUrl" expr:alt="display" />
+            </haz:if>
+            <haz:unless test="icon">
+              <span class="conv-icon-fallback" expr:_text="typeLabel"></span>
+            </haz:unless>
+          </figure>
+          <h3 expr:_text="display"></h3>
+          <dl>
+            <dt>ID</dt>
+            <dd expr:_text="id"></dd>
+            <dt>Platform</dt>
+            <dd expr:_text="platform"></dd>
+            <dt>Type</dt>
+            <dd expr:_text="type"></dd>
+            <dt>Participants</dt>
+            <dd expr:_text="participantCount"></dd>
+            <haz:each select="custom">
+              <dt expr:_text="name"></dt>
+              <dd expr:_text="value"></dd>
+            </haz:each>
+          </dl>
+        </article>
+      </hf-transform>
+    </hf-body>
+  </hf-frame>
 </nav>
 
 <main>
