@@ -31,14 +31,19 @@ You can also use the viewer automatically installed via GitHub Pages at
 
 The implementation contains three main components:
 
-1. `viewer.html` - Presents the content of the RSMF.
-2. `index.html` - Enables choosing, unzipping, and checking the `rsmf.zip`. 
-3. `serviceworker.js` - Intercepts HTTP requests so that `viewer.html` receives content extracted from the `rsmf.zip` chosen in `index.html`.
+1. `viewer-hf.html` - Presents the content of the RSMF (default viewer, uses HyperFrameset).
+2. `viewer-vue.html` - Alternative viewer using Vue.js.
+3. `index.html` - Enables choosing, unzipping, and checking the `rsmf.zip`. 
+4. `serviceworker.js` - Intercepts HTTP requests so that the viewer receives content extracted from the `rsmf.zip` chosen in `index.html`.
 
-### `viewer.html`
-This page looks for a sub-directory which contains the unzipped contents of the `rsmf.zip` file.
+### Viewers
+The default viewer is `viewer-hf.html`. To use the Vue-based viewer instead, load:
+
+    http://localhost:8000/index.html?viewer=viewer-vue.html
+
+Each viewer page looks for a sub-directory which contains the unzipped contents of the `rsmf.zip` file.
 By default this sub-directory is `data/` but it can be configured by loading the page like: 
-    http://localhost:8000/viewer.html?data=alternate-data
+    http://localhost:8000/viewer-hf.html?data=alternate-data
 This would allow you to manually unzip the `rsmf.zip` file into a sub-directory and test with it specifically.
 
 ### `index.html`
@@ -46,15 +51,16 @@ This page starts with a dialog prompting the user to choose an `rsmf.zip` file.
 When the file is chosen it is extracted, checked for validity, then stashed in [Origin Private FileSystem](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system)
 to be accessed by the [Service Worker](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API).
 
-Once the RSMF contents are stashed this opens `viewer.html` in an `<iframe>` with a unique `@src` pointing to the stashed data, e.g.
-    http://localhost:8000/viewer.html?data=rsmf/20240805080837/
+Once the RSMF contents are stashed this opens the viewer in an `<iframe>` with a unique `@src` pointing to the stashed data, e.g.
+    http://localhost:8000/viewer-hf.html?data=rsmf/20240805080837/
 
 
 ## Licensing
 
 This software is released with MIT license. 
-It also utilizes other software under the MIT license:
+It also utilizes other software under different licenses:
 
-- Vue.js: https://github.com/vuejs/core/blob/main/LICENSE
-- Ndesmic Zip.js: https://github.com/ndesmic/zip/blob/main/license
-- PostalSys postal-mime.js: https://github.com/postalsys/postal-mime/blob/master/LICENSE.txt
+- HyperFrameset (includes behaviors): https://github.com/meekostuff/HyperFrameset/blob/main/LICENSE.txt (MPL-2.0)
+- Vue.js: https://github.com/vuejs/core/blob/main/LICENSE (MIT)
+- Ndesmic Zip.js: https://github.com/ndesmic/zip/blob/main/license (MIT)
+- PostalSys postal-mime.js: https://github.com/postalsys/postal-mime/blob/master/LICENSE.txt (MIT)
