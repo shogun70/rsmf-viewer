@@ -149,7 +149,7 @@ TODO Future enhancements:
           let isPdf = ext === 'pdf' && navigator.pdfViewerEnabled;
           let isRenderable = /^(html|htm|txt|text|json|xml)$/.test(ext);
           return {
-            id: att.id, display: att.display, url: basePath + att.id, label, ext: ext.toUpperCase(),
+            id: att.id, display: att.display, url: basePath + att.id, label, ext: ext.length > 4 ? '???' : ext.toUpperCase(),
             isImage, isVideo, isAudio, isPdf, isRenderable,
             isDownload: !isImage && !isVideo && !isAudio && !isPdf && !isRenderable
           };
@@ -229,7 +229,7 @@ TODO Future enhancements:
     .conv-icon { margin: 0; display: flex; justify-content: center; }
     .conv-icon img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; }
     .conv-icon-fallback { width: 48px; height: 48px; border-radius: 6px; background: #4a7c59; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.5em; font-weight: bold; }
-    .errors { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 0.5em 0.5em 0.5em 1.5em; margin: 0.5em 0; font-size: 0.85em; color: #856404; }
+    .errors { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 0.5em 0.5em 0.5em 1.5em; margin: 0.5em 0; font-size: 0.85em; color: #856404; list-style-type: '⚠ '; }
   </style>
     <hf-body condition="loaded">
       <hf-transform type="hazard" format="json">
@@ -425,7 +425,7 @@ TODO Future enhancements:
     .participant dl { text-align: left; display: grid; grid-template-columns: auto 1fr; gap: 0.25em 0.5em; margin: 1em 0; }
     .participant dt { font-weight: bold; }
     .participant dd { margin: 0; overflow-wrap: break-word; }
-    .errors { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 0.5em 0.5em 0.5em 1.5em; margin: 0.5em 0; font-size: 0.85em; color: #856404; }
+    .errors { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 0.5em 0.5em 0.5em 1.5em; margin: 0.5em 0; font-size: 0.85em; color: #856404; list-style-type: '⚠ '; }
   </style>
     <hf-body condition="loaded">
       <hf-transform type="hazard" format="json">
