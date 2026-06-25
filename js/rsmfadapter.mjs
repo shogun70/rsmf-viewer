@@ -45,8 +45,8 @@ class RsmfAdapter
     }
 
     static #addError(item, message) {
-        if (!item.errors) item.errors = [];
-        item.errors.push(message);
+        if (!item._errors) item._errors = [];
+        item._errors.push(message);
     }
 
     /**

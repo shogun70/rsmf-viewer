@@ -72,6 +72,10 @@ TODO Future enhancements:
     #popup::backdrop { background-color: rgba(0, 0, 0, 0.75); }
     #popup img { max-width: 80vw; max-height: 80vh; }
     progress { display: block; margin: 2em auto; }
+    .errors { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 0.5em 0.5em 0.5em 1.5em; margin: 0.5em 0; font-size: 0.85em; color: #856404; }
+    .error-icon { position: relative; cursor: help; color: #d4a017; }
+    .error-tooltip { display: none; position: absolute; top: 1.5em; left: 0; z-index: 10; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 0.5em 0.5em 0.5em 1.5em; font-size: 0.8em; color: #856404; white-space: nowrap; margin: 0; }
+    .error-icon:hover .error-tooltip { display: block; }
   </style>
   <script>
     var basePath = (() => {
@@ -123,7 +127,9 @@ TODO Future enhancements:
           emailHref: p.email ? 'mailto:' + p.email : null,
           avatar: p.avatar || null,
           avatarUrl: p.avatar ? basePath + p.avatar : null,
-          custom: p.custom || []
+          custom: p.custom || [],
+          hasErrors: (p._errors || []).length > 0,
+          errors: p._errors || []
         }});
       });
     }
@@ -164,6 +170,8 @@ TODO Future enhancements:
         })),
         hasCustom: (event.custom || []).length > 0,
         custom: event.custom || [],
+        hasErrors: (event._errors || []).length > 0,
+        errors: event._errors || [],
         // TODO hasReplies is a workaround: Hazard boolean cast treats 0 as truthy (bug in Hazard/JSONDecoder)
         hasReplies: replyCount > 0,
         replyCount: replyCount,
@@ -211,7 +219,9 @@ TODO Future enhancements:
               icon: conv.icon || null,
               iconUrl: conv.icon ? basePath + conv.icon : null,
               participantCount: (conv.participants || []).length + ' members',
-              custom: conv.custom || []
+              custom: conv.custom || [],
+              hasErrors: (conv._errors || []).length > 0,
+              errors: conv._errors || []
             }});
           });
         } else {
@@ -262,6 +272,11 @@ TODO Future enhancements:
               <dd expr:_text="value"></dd>
             </haz:each>
           </dl>
+          <haz:if test="hasErrors">
+            <ul class="errors">
+              <haz:each select="errors"><li expr:_text="."></li></haz:each>
+            </ul>
+          </haz:if>
         </article>
       </hf-transform>
     </hf-body>
@@ -291,6 +306,13 @@ TODO Future enhancements:
                   </dl>
                 </haz:if>
               </span>
+              <haz:if test="hasErrors">
+                <span class="error-icon" title="">⚠
+                  <ul class="error-tooltip">
+                    <haz:each select="errors"><li expr:_text="."></li></haz:each>
+                  </ul>
+                </span>
+              </haz:if>
             </header>
             <p expr:_html="body"></p>
             <haz:if test="hasEdits">
@@ -377,6 +399,11 @@ TODO Future enhancements:
               <dd expr:_text="value"></dd>
             </haz:each>
           </dl>
+          <haz:if test="hasErrors">
+            <ul class="errors">
+              <haz:each select="errors"><li expr:_text="."></li></haz:each>
+            </ul>
+          </haz:if>
         </article>
       </hf-transform>
     </hf-body>
