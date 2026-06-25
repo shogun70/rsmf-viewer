@@ -1,6 +1,7 @@
 <!doctype html>
 <!--
 TODO Future enhancements:
+- Fix FOUC: raw template markup is briefly visible on page load. Needs fix in HyperFrameset.
 - Unthreaded view: flat chronological display where replies show a preview of
   their parent (quoted snippet, tooltip, or clickable link to parent message).
 - Filter conversations by type and/or platform.
@@ -70,6 +71,7 @@ TODO Future enhancements:
     .participant dd { margin: 0; overflow-wrap: break-word; }
     #popup::backdrop { background-color: rgba(0, 0, 0, 0.75); }
     #popup img { max-width: 80vw; max-height: 80vh; }
+    progress { display: block; margin: 2em auto; }
   </style>
   <script>
     var basePath = (() => {
@@ -189,6 +191,7 @@ TODO Future enhancements:
       let frameEl = document.querySelector(`hf-frame[targetname="${this.element.dataset.target}"]`);
       if (!frameEl || !frameEl.$) return;
       let conversationId = this.element.elements['conversationId']?.value || null;
+      frameEl.preload({});
       buildMessagesData(conversationId).then(async data => {
         // console.time('render messages');
         await frameEl.load({ url: document.URL, type: 'json', document: data });
@@ -342,7 +345,7 @@ TODO Future enhancements:
       </hf-transform>
     </hf-body>
     <hf-body condition="loading">
-      <p>Select a conversation...</p>
+      <progress></progress>
     </hf-body>
   </hf-frame>
 </main>
@@ -404,7 +407,7 @@ await Meeko.framer.start();
 let convFrame = document.querySelector('hf-frame[targetname="conversations"]');
 let conversations = await rsmf.getConversations();
 
-convFrame.load({ url: document.URL, type: 'json', document: {
+await convFrame.load({ url: document.URL, type: 'json', document: {
   conversations: conversations.map(c => ({ id: c.id, display: c.display || c.id }))
 }});
 
